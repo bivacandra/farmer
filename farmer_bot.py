@@ -11,6 +11,8 @@ import time
 from typing import Callable, Dict, List, Optional, Tuple
 from PIL import Image
 
+from skill_controller import SkillController
+
 
 class FarmerBot:
     def __init__(self, window_manager, screen_capture, input_controller, template_matcher, ocr_engine, config):
@@ -20,6 +22,7 @@ class FarmerBot:
         self.matcher = template_matcher
         self.ocr = ocr_engine
         self.config = config
+        self.skills = SkillController(self.input, self.wm, self.config, logger=self.log)
 
         self.is_running = False
         self.log_callback: Optional[Callable[[str], None]] = None
@@ -34,6 +37,7 @@ class FarmerBot:
         """Stops the current running macro execution."""
         self.is_running = False
         self.input.abort()
+        self.skills.stop()
         self.log("Macro stopped by user.")
 
     # =========================================================================
@@ -428,6 +432,10 @@ class FarmerBot:
         storage_cfg = self.config.get("storage_deposit", {})
         blacklist_enabled = storage_cfg.get("blacklist_enabled", True)
 
+        skill_cfg = self.config.get("auto_skill", {})
+        if skill_cfg.get("enabled", True) and skill_cfg.get("sync_with_auto_hunt", True):
+            self.skills.start()
+
         try:
             while self.is_running:
                 # 1. Pindai tas secara pasif (screen capture tanpa gerak mouse)
@@ -492,5 +500,6 @@ class FarmerBot:
         except Exception as e:
             self.log(f"Error pada Auto Hunt: {e}")
         finally:
+            self.skills.stop()
             self.is_running = False
             self.log("Mode Auto Hunt berhenti.")

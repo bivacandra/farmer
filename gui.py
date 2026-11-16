@@ -141,7 +141,12 @@ class FarmerGUI(tk.Tk):
         self.notebook.add(self.tab_whitelist, text=" 🚫 Blacklist Jual NPC ")
         self._build_whitelist_tab()
 
-        # Tab 6: Settings
+        # Tab 6: Auto Skill
+        self.tab_skill = ttk.Frame(self.notebook, style="Card.TFrame")
+        self.notebook.add(self.tab_skill, text=" ⚡ Auto Skill ")
+        self._build_skill_tab()
+
+        # Tab 7: Settings
         self.tab_settings = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(self.tab_settings, text=" Pengaturan & Delay ")
         self._build_settings_tab()
@@ -159,7 +164,8 @@ class FarmerGUI(tk.Tk):
         self.selected_mode = tk.StringVar(value="hunt_auto_deposit")
 
         modes = [
-            ("⚔️ Auto Hunt Loop (Always Detect Tas -> Auto Pindah ke Gudang sambil Hunt)", "hunt_auto_deposit"),
+            ("⚔️ Auto Hunt Loop (Auto Pindah ke Gudang + Auto Skill sambil Hunt)", "hunt_auto_deposit"),
+            ("⚡ Auto Skill Standalone (Hanya Jalankan Auto Skill tanpa pindah tas)", "auto_skill_standalone"),
             ("Inventory -> Storage (Sekali jalan: Simpan ke Gudang dengan Filter Blacklist)", "inv_to_storage"),
             ("Storage -> Inventory (Sekali jalan: Tarik barang ke Slot Kosong Tas)", "storage_to_inv"),
             ("Inventory -> NPC Merchant (Sekali jalan: Jual item tas kecuali Blacklist)", "inv_to_merchant")
@@ -876,7 +882,199 @@ class FarmerGUI(tk.Tk):
         tk.Button(win, text="Potong & Simpan", bg="#238636", fg="#ffffff", relief="flat", padx=12, pady=6, command=do_crop).pack(pady=10)
 
     # =========================================================================
-    # TAB 5: Settings
+    # TAB 6: Auto Skill
+    # =========================================================================
+    def _build_skill_tab(self):
+        container = tk.Frame(self.tab_skill, bg="#222428", padx=16, pady=12)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        top_frame = tk.Frame(container, bg="#161b22", padx=12, pady=10, relief="ridge", bd=1)
+        top_frame.pack(fill=tk.X, pady=(0, 10))
+
+        skill_cfg = self.config.get("auto_skill", {})
+        self.var_skill_enabled = tk.BooleanVar(value=skill_cfg.get("enabled", True))
+        self.var_skill_sync_hunt = tk.BooleanVar(value=skill_cfg.get("sync_with_auto_hunt", True))
+
+        tk.Checkbutton(
+            top_frame,
+            text="⚡ Aktifkan Fitur Auto Skill (Otomatis spam skill sesuai timer detik)",
+            variable=self.var_skill_enabled,
+            bg="#161b22",
+            fg="#58a6ff",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9, "bold")
+        ).pack(anchor=tk.W)
+
+        tk.Checkbutton(
+            top_frame,
+            text="⚔️ Jalankan Auto Skill otomatis saat Mode Auto Hunt berjalan",
+            variable=self.var_skill_sync_hunt,
+            bg="#161b22",
+            fg="#e1e2e6",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9)
+        ).pack(anchor=tk.W, pady=(4, 0))
+
+        btn_bar = tk.Frame(top_frame, bg="#161b22")
+        btn_bar.pack(fill=tk.X, pady=(8, 0))
+
+        tk.Button(
+            btn_bar,
+            text="💾 Simpan Pengaturan Skill",
+            font=("Segoe UI", 8, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self._save_skill_settings
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="🔄 Reset Hitungan (Count)",
+            font=("Segoe UI", 8),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self._reset_skill_counts
+        ).pack(side=tk.LEFT)
+
+        # Scrollable container for keys
+        canvas = tk.Canvas(container, bg="#222428", highlightthickness=0)
+        scroll = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#222428")
+
+        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scroll.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.skill_vars = {}
+        keys_cfg = skill_cfg.get("keys", {})
+
+        def make_section(title, pairs):
+            sec_frame = tk.LabelFrame(scrollable_frame, text=f" {title} ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+            sec_frame.pack(fill=tk.X, pady=(0, 8))
+
+            col_left = tk.Frame(sec_frame, bg="#222428")
+            col_left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+            col_right = tk.Frame(sec_frame, bg="#222428")
+            col_right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            def add_key_row(parent, key_name):
+                row = tk.Frame(parent, bg="#222428", pady=2)
+                row.pack(fill=tk.X)
+
+                k_info = keys_cfg.get(key_name, {})
+                var_en = tk.BooleanVar(value=k_info.get("enabled", False))
+                var_sec = tk.StringVar(value=str(k_info.get("interval", 10.0)))
+
+                cb = tk.Checkbutton(
+                    row,
+                    text=f"{key_name.upper()}",
+                    variable=var_en,
+                    bg="#222428",
+                    fg="#e1e2e6",
+                    selectcolor="#161b22",
+                    activebackground="#222428",
+                    activeforeground="#58a6ff",
+                    font=("Segoe UI", 9, "bold"),
+                    width=4,
+                    anchor=tk.W
+                )
+                cb.pack(side=tk.LEFT)
+
+                tk.Label(row, text="Sec:", bg="#222428", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(2, 2))
+                entry = tk.Entry(row, textvariable=var_sec, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=6, font=("Consolas", 9))
+                entry.pack(side=tk.LEFT, padx=(0, 6))
+
+                lbl_count = tk.Label(row, text="Count: -", bg="#222428", fg="#7ee787", font=("Consolas", 8), width=10, anchor=tk.W)
+                lbl_count.pack(side=tk.LEFT)
+
+                self.skill_vars[key_name] = {
+                    "enabled": var_en,
+                    "interval": var_sec,
+                    "lbl_count": lbl_count
+                }
+
+            for left_k, right_k in pairs:
+                if left_k:
+                    add_key_row(col_left, left_k)
+                if right_k:
+                    add_key_row(col_right, right_k)
+
+        # 1. NUMBER KEYS
+        make_section(
+            "NUMBER KEYS (1 - 5 kiri | 6 - 0 kanan)",
+            [("1", "6"), ("2", "7"), ("3", "8"), ("4", "9"), ("5", "0")]
+        )
+
+        # 2. LETTER KEYS
+        make_section(
+            "LETTER KEYS (E, R, F)",
+            [("e", "r"), ("f", None)]
+        )
+
+        # 3. FUNCTION KEYS
+        make_section(
+            "FUNCTION KEYS (F1 - F5 kiri | F6 - F10 kanan)",
+            [("f1", "f6"), ("f2", "f7"), ("f3", "f8"), ("f4", "f9"), ("f5", "f10")]
+        )
+
+        # Start count updater
+        self.after(500, self._update_skill_counts)
+
+    def _save_skill_settings(self):
+        try:
+            if "auto_skill" not in self.config.data:
+                self.config.data["auto_skill"] = {}
+            self.config.data["auto_skill"]["enabled"] = self.var_skill_enabled.get()
+            self.config.data["auto_skill"]["sync_with_auto_hunt"] = self.var_skill_sync_hunt.get()
+
+            if "keys" not in self.config.data["auto_skill"]:
+                self.config.data["auto_skill"]["keys"] = {}
+
+            for k, widgets in self.skill_vars.items():
+                try:
+                    sec_val = float(widgets["interval"].get().strip())
+                except ValueError:
+                    sec_val = 10.0
+                self.config.data["auto_skill"]["keys"][k] = {
+                    "enabled": widgets["enabled"].get(),
+                    "interval": max(0.1, sec_val)
+                }
+
+            self.config.save()
+            messagebox.showinfo("Sukses", "Pengaturan Auto Skill berhasil disimpan!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal menyimpan skill: {e}")
+
+    def _reset_skill_counts(self):
+        self.bot.skills.reset_counts()
+        for k, widgets in self.skill_vars.items():
+            widgets["lbl_count"].config(text="Count: 0")
+
+    def _update_skill_counts(self):
+        try:
+            counts = self.bot.skills.counts
+            for k, widgets in self.skill_vars.items():
+                c = counts.get(k, 0)
+                widgets["lbl_count"].config(text=f"Count: {c}")
+        except Exception:
+            pass
+        self.after(500, self._update_skill_counts)
+
+    # =========================================================================
+    # TAB 7: Settings
     # =========================================================================
     def _build_settings_tab(self):
         container = tk.Frame(self.tab_settings, bg="#222428", padx=16, pady=14)
@@ -1076,6 +1274,15 @@ class FarmerGUI(tk.Tk):
             try:
                 if mode == "hunt_auto_deposit":
                     self.bot.run_hunt_auto_deposit()
+                elif mode == "auto_skill_standalone":
+                    self.bot.is_running = True
+                    self.bot.skills.start()
+                    try:
+                        while self.bot.is_running:
+                            time.sleep(0.2)
+                    finally:
+                        self.bot.skills.stop()
+                        self.bot.is_running = False
                 elif mode == "inv_to_storage":
                     self.bot.run_inventory_to_storage()
                 elif mode == "storage_to_inv":

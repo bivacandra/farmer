@@ -65,6 +65,35 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "start": "f11",
         "stop": "f12",
         "emergency_abort": "esc"
+    },
+    "auto_skill": {
+        "enabled": True,
+        "sync_with_auto_hunt": True,
+        "keys": {
+            "1": {"enabled": True, "interval": 4.0},
+            "2": {"enabled": True, "interval": 2.0},
+            "3": {"enabled": False, "interval": 50.0},
+            "4": {"enabled": False, "interval": 300.0},
+            "5": {"enabled": False, "interval": 10.0},
+            "6": {"enabled": False, "interval": 10.0},
+            "7": {"enabled": False, "interval": 10.0},
+            "8": {"enabled": False, "interval": 10.0},
+            "9": {"enabled": False, "interval": 10.0},
+            "0": {"enabled": False, "interval": 10.0},
+            "e": {"enabled": False, "interval": 10.0},
+            "r": {"enabled": False, "interval": 10.0},
+            "f": {"enabled": False, "interval": 10.0},
+            "f1": {"enabled": True, "interval": 200.0},
+            "f2": {"enabled": True, "interval": 210.0},
+            "f3": {"enabled": False, "interval": 10.0},
+            "f4": {"enabled": False, "interval": 10.0},
+            "f5": {"enabled": False, "interval": 10.0},
+            "f6": {"enabled": False, "interval": 10.0},
+            "f7": {"enabled": False, "interval": 10.0},
+            "f8": {"enabled": False, "interval": 10.0},
+            "f9": {"enabled": False, "interval": 10.0},
+            "f10": {"enabled": False, "interval": 10.0}
+        }
     }
 }
 

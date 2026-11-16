@@ -57,5 +57,34 @@
     "start": "f11",
     "stop": "f12",
     "emergency_abort": "esc"
+  },
+  "auto_skill": {
+    "enabled": true,
+    "sync_with_auto_hunt": true,
+    "keys": {
+      "1": {"enabled": true, "interval": 4.0},
+      "2": {"enabled": true, "interval": 2.0},
+      "3": {"enabled": false, "interval": 50.0},
+      "4": {"enabled": false, "interval": 300.0},
+      "5": {"enabled": false, "interval": 10.0},
+      "6": {"enabled": false, "interval": 10.0},
+      "7": {"enabled": false, "interval": 10.0},
+      "8": {"enabled": false, "interval": 10.0},
+      "9": {"enabled": false, "interval": 10.0},
+      "0": {"enabled": false, "interval": 10.0},
+      "e": {"enabled": false, "interval": 10.0},
+      "r": {"enabled": false, "interval": 10.0},
+      "f": {"enabled": false, "interval": 10.0},
+      "f1": {"enabled": true, "interval": 200.0},
+      "f2": {"enabled": true, "interval": 210.0},
+      "f3": {"enabled": false, "interval": 10.0},
+      "f4": {"enabled": false, "interval": 10.0},
+      "f5": {"enabled": false, "interval": 10.0},
+      "f6": {"enabled": false, "interval": 10.0},
+      "f7": {"enabled": false, "interval": 10.0},
+      "f8": {"enabled": false, "interval": 10.0},
+      "f9": {"enabled": false, "interval": 10.0},
+      "f10": {"enabled": false, "interval": 10.0}
+    }
   }
 }
