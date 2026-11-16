@@ -53,6 +53,7 @@
   "rules": {
     "empty_slot_threshold": 18.0,
     "sell_whitelist_match_threshold": 0.5,
+    "storage_blacklist_match_threshold": 0.5,
     "auto_confirm_sell": true,
     "use_ocr_name_fallback": true
   },

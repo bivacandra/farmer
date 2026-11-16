@@ -190,6 +190,16 @@ class TemplateMatcher:
                     res_exact = cv2.matchTemplate(slot_cv, icon_cv_exact, cv2.TM_CCOEFF_NORMED)
                     scores.append(float(res_exact[0][0]))
 
+                    # Scale C: Unresized center needle (preserves 100% original texture & edge sharpness)
+                    if iw >= 10 and ih >= 10:
+                        pad = 3
+                        icon_needle = icon_img.crop((pad, pad, max(pad + 4, iw - pad), max(pad + 4, ih - pad)))
+                        icon_cv_needle = self._pil_to_cv2(icon_needle)
+                        if slot_cv.shape[0] >= icon_cv_needle.shape[0] and slot_cv.shape[1] >= icon_cv_needle.shape[1]:
+                            res_needle = cv2.matchTemplate(slot_cv, icon_cv_needle, cv2.TM_CCOEFF_NORMED)
+                            _, max_v_needle, _, _ = cv2.minMaxLoc(res_needle)
+                            scores.append(float(max_v_needle))
+
                     score = max(scores) if scores else 0.0
                 else:
                     from PIL import ImageChops, ImageStat

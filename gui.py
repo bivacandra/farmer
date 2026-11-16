@@ -1383,12 +1383,15 @@ class FarmerGUI(tk.Tk):
             ("Timeout Pop-up Konfirmasi Jual (detik):", "delays", "popup_wait_timeout_sec"),
             ("Sensitivitas Deteksi Kosong (StdDev):", "rules", "empty_slot_threshold"),
             ("Threshold Match Blacklist Jual (0.5 - 1.0):", "rules", "sell_whitelist_match_threshold"),
+            ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
             ("Interval Cek Auto Hunt (detik):", "delays", "hunt_loop_interval_sec"),
         ]
 
         for i, (label_text, sec, key) in enumerate(fields):
             tk.Label(grid, text=label_text, bg="#222428", fg="#e1e2e6").grid(row=i, column=0, sticky=tk.W, pady=6, padx=(0, 15))
             val = self.config.get(sec, key)
+            if val is None and key == "storage_blacklist_match_threshold":
+                val = self.config.get("rules", "sell_whitelist_match_threshold", 0.50)
             e = tk.Entry(grid, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=12)
             e.insert(0, str(val))
             e.grid(row=i, column=1, sticky=tk.W, pady=6)

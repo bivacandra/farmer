@@ -253,13 +253,20 @@ class FarmerBot:
                     # 2. Cek BLACKLIST GUDANG (Item yang TIDAK dipindahkan dari inventory ke gudang)
                     is_blacklisted = False
                     bl_name = None
+                    score = 0.0
+                    th_store = float(self.config.get("rules", "storage_blacklist_match_threshold",
+                                     self.config.get("rules", "sell_whitelist_match_threshold", 0.50)))
                     if blacklist_enabled and blacklist_icons:
                         is_blacklisted, bl_name, score = self.matcher.match_item_in_whitelist(
-                            slot_crop, whitelist_dir=self.config.storage_blacklist_dir
+                            slot_crop, whitelist_dir=self.config.storage_blacklist_dir, threshold=th_store
                         )
+                        if round(score, 2) >= round(th_store, 2) or score >= (th_store - 1e-4):
+                            is_blacklisted = True
+
+                        status_str = "🛑 BLACKLIST GUDANG (TINGGAL DI TAS)" if is_blacklisted else "📦 PINDAH KE GUDANG"
+                        self.log(f"Slot #{slot_idx} [B:{r+1}, K:{c+1}]: Match '{bl_name}'={score:.2f} (Min:{th_store:.2f}) -> {status_str}")
 
                     if is_blacklisted:
-                        self.log(f"Slot #{slot_idx} ('{bl_name}') masuk BLACKLIST GUDANG. Ditinggalkan di tas, tidak dipindah.")
                         continue
 
                     # 3. Item bukan Blacklist: Pindahkan langsung ke slot kosong di gudang
@@ -443,6 +450,8 @@ class FarmerBot:
         if skill_cfg.get("enabled", True) and skill_cfg.get("sync_with_auto_hunt", True):
             self.skills.start()
 
+        last_logged_slot_status = {}  # slot_idx -> (status_str, bl_name, rounded_score)
+
         try:
             while self.is_running:
                 # 1. Pindai tas secara pasif (screen capture tanpa gerak mouse)
@@ -454,31 +463,44 @@ class FarmerBot:
                 for r in range(rows):
                     for c in range(cols):
                         slot_crop = self.get_inventory_slot_crop(client_img, c, r)
+                        slot_idx = (r * cols) + c + 1
+
                         if self.matcher.is_slot_empty(slot_crop):
+                            # Slot kosong: bersihkan tracker agar jika nanti ada item baru masuk slot ini, langsung di-log
+                            last_logged_slot_status.pop(slot_idx, None)
                             continue
 
                         # Cek apakah item masuk Blacklist Gudang
                         is_blacklisted = False
                         bl_name = None
+                        sc = 0.0
+                        th_hunt = float(self.config.get("rules", "storage_blacklist_match_threshold",
+                                         self.config.get("rules", "sell_whitelist_match_threshold", 0.50)))
                         if blacklist_enabled and blacklist_icons:
-                            th_hunt = float(self.config.get("rules", "sell_whitelist_match_threshold", 0.50))
                             is_blacklisted, bl_name, sc = self.matcher.match_item_in_whitelist(
                                 slot_crop, whitelist_dir=self.config.storage_blacklist_dir, threshold=th_hunt
                             )
                             if round(sc, 2) >= round(th_hunt, 2) or sc >= (th_hunt - 1e-4):
                                 is_blacklisted = True
 
+                            status_str = "🛑 BLACKLIST GUDANG (TINGGAL DI TAS)" if is_blacklisted else "📦 AKAN DIPINDAH"
+                            cur_signature = (status_str, bl_name, round(sc, 2))
+
+                            # Hanya log jika ada perubahan status/skor pada slot ini agar tidak spam loop setiap 1.5 detik
+                            if last_logged_slot_status.get(slot_idx) != cur_signature:
+                                last_logged_slot_status[slot_idx] = cur_signature
+                                self.log(f"[Auto Hunt] Slot #{slot_idx} [B:{r+1}, K:{c+1}]: Match '{bl_name}'={sc:.2f} (Min:{th_hunt:.2f}) -> {status_str}")
+
                         if not is_blacklisted:
-                            slot_idx = (r * cols) + c + 1
-                            items_to_transfer.append((c, r, slot_idx))
+                            items_to_transfer.append((c, r, slot_idx, bl_name, sc, th_hunt))
 
                 # 2. Jika ada item yang perlu dipindahkan ke storage
                 if items_to_transfer:
-                    self.log(f"[Auto Hunt] Terdeteksi {len(items_to_transfer)} item baru. Memindahkan ke Gudang...")
+                    self.log(f"[Auto Hunt] Terdeteksi {len(items_to_transfer)} item untuk dipindahkan ke Gudang...")
                     self.wm.activate_window()
                     time.sleep(0.05)
 
-                    for c, r, slot_idx in items_to_transfer:
+                    for c, r, slot_idx, bl_name, sc, th_hunt in items_to_transfer:
                         if not self.is_running:
                             return
 
@@ -494,7 +516,8 @@ class FarmerBot:
                         slot_cx, slot_cy = self.get_inventory_slot_coords(c, r)
                         dest_idx = (target_store_r * self.config.get("storage", "cols", 10)) + target_store_c + 1
 
-                        self.log(f"[Auto Hunt] Pindah Slot #{slot_idx} -> Storage Kosong #{dest_idx}...")
+                        match_info = f" (Match '{bl_name}'={sc:.2f} < Min:{th_hunt:.2f})" if bl_name else ""
+                        self.log(f"[Auto Hunt] Pindah Slot #{slot_idx}{match_info} -> Storage Kosong #{dest_idx} [{target_store_r+1},{target_store_c+1}]...")
                         self.input.drag_and_drop(slot_cx, slot_cy, dest_cx, dest_cy)
                         time.sleep(self.config.get("delays", "post_action_delay_sec", 0.15))
 
