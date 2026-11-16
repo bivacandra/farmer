@@ -104,8 +104,12 @@ class WindowManager:
 
     def activate_window(self) -> bool:
         """Brings the game window to foreground."""
-        if not self.hwnd or sys.platform != "win32":
+        if sys.platform != "win32":
             return True
+        if not self.hwnd:
+            self.find_window()
+        if not self.hwnd:
+            return False
         try:
             import ctypes
             user32 = ctypes.windll.user32
@@ -120,7 +124,14 @@ class WindowManager:
 
     def update_bounds(self) -> None:
         """Updates window and client area bounds."""
-        if not self.hwnd or sys.platform != "win32":
+        if sys.platform != "win32":
+            self.client_rect = (0, 0, 1024, 768)
+            return
+
+        if not self.hwnd:
+            self.find_window()
+
+        if not self.hwnd:
             self.client_rect = (0, 0, 1024, 768)
             return
 

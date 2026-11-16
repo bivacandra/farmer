@@ -3,6 +3,7 @@ Screen capture module.
 Supports high-performance capture with mss, PIL.ImageGrab, and offline mock screenshots.
 """
 
+import sys
 from pathlib import Path
 from typing import Optional, Tuple
 from PIL import Image
@@ -40,6 +41,9 @@ class ScreenCapture:
         """
         if self._mock_image is not None:
             return self._mock_image
+
+        if not self.wm.hwnd and sys.platform == "win32":
+            self.wm.find_window()
 
         self.wm.update_bounds()
         if not self.wm.client_rect:

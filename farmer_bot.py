@@ -364,6 +364,8 @@ class FarmerBot:
         rows = inv.get("rows", 4)
 
         bl_icons = list(self.config.merchant_blacklist_dir.glob("*.png")) + list(self.config.merchant_blacklist_dir.glob("*.jpg"))
+        threshold = float(self.config.get("rules", "sell_whitelist_match_threshold", 0.50))
+        self.log(f"[Blacklist Jual NPC] Memuat {len(bl_icons)} item blacklist: {[p.stem for p in bl_icons]} (Threshold: {threshold})")
         sold_count = 0
 
         try:
@@ -386,13 +388,17 @@ class FarmerBot:
                     # 2. Cek apakah item masuk BLACKLIST JUAL NPC (Item yang TIDAK dijual)
                     is_blacklisted = False
                     bl_name = None
+                    score = 0.0
                     if bl_icons:
                         is_blacklisted, bl_name, score = self.matcher.match_item_in_whitelist(
-                            slot_crop, whitelist_dir=self.config.merchant_blacklist_dir
+                            slot_crop, whitelist_dir=self.config.merchant_blacklist_dir, threshold=threshold
                         )
 
+                    if bl_icons:
+                        status_str = "🛑 BLACKLIST (TIDAK DIJUAL)" if is_blacklisted else "💰 AKAN DIJUAL"
+                        self.log(f"Slot #{slot_idx} [B:{r+1}, K:{c+1}]: Match '{bl_name}'={score:.2f} (Min:{threshold}) -> {status_str}")
+
                     if is_blacklisted:
-                        self.log(f"Slot #{slot_idx} ('{bl_name}') masuk BLACKLIST JUAL NPC. Ditinggalkan di tas, tidak dijual.")
                         continue
 
                     # 3. Item bukan Blacklist: Jual ke Merchant

@@ -142,14 +142,13 @@ class TemplateMatcher:
 
     def match_item_in_whitelist(self, slot_crop: Image.Image, whitelist_dir: Optional[Path] = None, threshold: Optional[float] = None) -> Tuple[bool, Optional[str], float]:
         """
-        Compares slot image against all icons in whitelist_dir (defaults to assets/whitelist/).
+        Compares slot image against all icons in whitelist_dir (defaults to assets/merchant_blacklist/).
+        Uses sliding window matching to tolerate 1-4px calibration shifts and jitter.
         Returns (is_whitelisted, item_name, confidence).
         """
-        from PIL import ImageChops, ImageStat
-
         target_dir = whitelist_dir if whitelist_dir is not None else self.whitelist_dir
         if threshold is None:
-            threshold = self.config.get("rules", "sell_whitelist_match_threshold", 0.78)
+            threshold = float(self.config.get("rules", "sell_whitelist_match_threshold", 0.50))
 
         whitelist_files = list(target_dir.glob("*.png")) + list(target_dir.glob("*.jpg"))
         if not whitelist_files:
@@ -159,26 +158,43 @@ class TemplateMatcher:
         best_name = None
 
         w, h = slot_crop.size
-        inner_slot = slot_crop.crop((2, 2, w - 2, h - 2)).convert("RGB")
+        inner_slot = slot_crop.crop((2, 2, max(3, w - 2), max(3, h - 2))).convert("RGB")
+        sw_in, sh_in = inner_slot.size
 
         for icon_path in whitelist_files:
             icon_name = icon_path.stem
             try:
                 icon_img = Image.open(icon_path).convert("RGB")
                 iw, ih = icon_img.size
-                if iw >= 10 and ih >= 10:
-                    inner_icon = icon_img.crop((2, 2, iw - 2, ih - 2))
-                else:
-                    inner_icon = icon_img
-                icon_resized = inner_icon.resize(inner_slot.size, Image.Resampling.BILINEAR)
+                if iw < 4 or ih < 4:
+                    continue
 
                 if HAS_CV2:
                     slot_cv = self._pil_to_cv2(inner_slot)
-                    icon_cv = self._pil_to_cv2(icon_resized)
-                    res = cv2.matchTemplate(slot_cv, icon_cv, cv2.TM_CCOEFF_NORMED)
-                    score = float(res[0][0])
+                    scores = []
+
+                    # Scale A: Sliding window (needle smaller by 6px to allow sliding search across jitter)
+                    target_w = max(10, sw_in - 6)
+                    target_h = max(10, sh_in - 6)
+                    icon_small = icon_img.resize((target_w, target_h), Image.Resampling.BILINEAR)
+                    icon_cv_small = self._pil_to_cv2(icon_small)
+
+                    if slot_cv.shape[0] >= icon_cv_small.shape[0] and slot_cv.shape[1] >= icon_cv_small.shape[1]:
+                        res_slide = cv2.matchTemplate(slot_cv, icon_cv_small, cv2.TM_CCOEFF_NORMED)
+                        _, max_v, _, _ = cv2.minMaxLoc(res_slide)
+                        scores.append(float(max_v))
+
+                    # Scale B: Exact size overlay
+                    icon_exact = icon_img.resize((sw_in, sh_in), Image.Resampling.BILINEAR)
+                    icon_cv_exact = self._pil_to_cv2(icon_exact)
+                    res_exact = cv2.matchTemplate(slot_cv, icon_cv_exact, cv2.TM_CCOEFF_NORMED)
+                    scores.append(float(res_exact[0][0]))
+
+                    score = max(scores) if scores else 0.0
                 else:
-                    diff = ImageChops.difference(inner_slot, icon_resized)
+                    from PIL import ImageChops, ImageStat
+                    icon_exact = icon_img.resize(inner_slot.size, Image.Resampling.BILINEAR)
+                    diff = ImageChops.difference(inner_slot, icon_exact)
                     stat = ImageStat.Stat(diff)
                     mae = sum(stat.mean) / 3.0
                     score = max(0.0, 1.0 - (mae / 255.0))
@@ -189,7 +205,5 @@ class TemplateMatcher:
             except Exception as e:
                 print(f"[TemplateMatcher] Error matching {icon_path}: {e}")
 
-        if best_score >= threshold:
-            return True, best_name, best_score
-
-        return False, best_name, best_score
+        is_match = bool(best_score >= threshold)
+        return is_match, best_name, float(best_score)

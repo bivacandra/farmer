@@ -203,6 +203,17 @@ class FarmerGUI(tk.Tk):
         # Setup hotkeys
         self._setup_hotkeys()
 
+        # Auto-detect game window on startup/login
+        self.after(300, self._auto_detect_game_window)
+
+    def _auto_detect_game_window(self):
+        found = self.wm.find_window()
+        if found:
+            origin_x, origin_y, w, h = self.wm.client_rect or (0, 0, 0, 0)
+            self.append_log(f"Game terhubung: '{self.wm.window_title}' ({w}x{h})")
+        else:
+            self.append_log("Jendela game belum terdeteksi otomatis. Silakan buka game atau pilih jendela di tombol 'Cek Jendela Game'.")
+
     def _setup_styles(self):
         self.configure(bg="#18191c")
         style = ttk.Style(self)
@@ -966,60 +977,155 @@ class FarmerGUI(tk.Tk):
     def crop_icon_dialog(self, target: str = "storage_blacklist"):
         target_dir, target_name = self._get_target_dir_and_title(target)
 
+        inv_cfg = self.config.get("inventory", {})
+        cols = int(inv_cfg.get("cols", 6))
+        rows = int(inv_cfg.get("rows", 4))
+
         win = tk.Toplevel(self)
         win.title(f"Potong Ikon Slot Tas ({target_name})")
-        win.geometry("400x260")
+        win.geometry("450x390")
         win.configure(bg="#222428")
+        win.resizable(False, False)
 
         tk.Label(
             win,
-            text=f"Masukkan Posisi Slot Inventaris ({target_name}):",
-            font=("Segoe UI", 10, "bold"),
+            text=f"Potong Ikon dari Slot Tas ({target_name})",
+            font=("Segoe UI", 11, "bold"),
             bg="#222428",
             fg="#58a6ff"
-        ).pack(pady=10)
+        ).pack(pady=(12, 4))
+
+        tk.Label(
+            win,
+            text=f"Grid Tas Terkalibrasi: {cols} Kolom x {rows} Baris ({cols * rows} Slot)",
+            font=("Segoe UI", 8),
+            bg="#222428",
+            fg="#8b949e"
+        ).pack(pady=(0, 8))
 
         f_grid = tk.Frame(win, bg="#222428")
-        f_grid.pack(pady=5)
+        f_grid.pack(pady=4)
 
-        tk.Label(f_grid, text="Kolom (1 - 6):", bg="#222428", fg="#e1e2e6").grid(row=0, column=0, padx=5, pady=5)
-        col_entry = tk.Entry(f_grid, width=6)
+        tk.Label(f_grid, text=f"Kolom (1 - {cols}):", bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=0, column=0, padx=5, pady=4, sticky=tk.W)
+        col_entry = tk.Entry(f_grid, width=8, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", font=("Segoe UI", 9))
         col_entry.insert(0, "1")
-        col_entry.grid(row=0, column=1, padx=5, pady=5)
+        col_entry.grid(row=0, column=1, padx=5, pady=4)
 
-        tk.Label(f_grid, text="Baris (1 - 4):", bg="#222428", fg="#e1e2e6").grid(row=1, column=0, padx=5, pady=5)
-        row_entry = tk.Entry(f_grid, width=6)
+        tk.Label(f_grid, text=f"Baris (1 - {rows}):", bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=1, column=0, padx=5, pady=4, sticky=tk.W)
+        row_entry = tk.Entry(f_grid, width=8, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", font=("Segoe UI", 9))
         row_entry.insert(0, "1")
-        row_entry.grid(row=1, column=1, padx=5, pady=5)
+        row_entry.grid(row=1, column=1, padx=5, pady=4)
 
-        tk.Label(f_grid, text="Nama Item:", bg="#222428", fg="#e1e2e6").grid(row=2, column=0, padx=5, pady=5)
-        name_entry = tk.Entry(f_grid, width=16)
+        tk.Label(f_grid, text="Nama Item:", bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=2, column=0, padx=5, pady=4, sticky=tk.W)
+        name_entry = tk.Entry(f_grid, width=18, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", font=("Segoe UI", 9))
         name_entry.insert(0, "item_baru")
-        name_entry.grid(row=2, column=1, padx=5, pady=5)
+        name_entry.grid(row=2, column=1, padx=5, pady=4)
 
-        def do_crop():
+        # Preview Container
+        f_prev = tk.Frame(win, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
+        f_prev.pack(pady=8)
+
+        lbl_img_prev = tk.Label(f_prev, text="[ Belum ada preview ]", bg="#161b22", fg="#8b949e", width=22, height=3)
+        lbl_img_prev.pack()
+
+        lbl_status = tk.Label(win, text="Klik 'Ambil / Preview' untuk melihat gambar slot dari game.", font=("Segoe UI", 8), bg="#222428", fg="#8b949e")
+        lbl_status.pack(pady=(0, 8))
+
+        current_crop = [None]
+        preview_tk = [None]
+
+        def get_active_crop():
             try:
-                c = int(col_entry.get()) - 1
-                r = int(row_entry.get()) - 1
-                name = name_entry.get().strip() or f"item_c{c+1}_r{r+1}"
+                c = int(col_entry.get().strip()) - 1
+                r = int(row_entry.get().strip()) - 1
+                if not (0 <= c < cols and 0 <= r < rows):
+                    messagebox.showwarning("Rentang Tidak Valid", f"Kolom harus 1..{cols} dan Baris harus 1..{rows}!")
+                    return None
+
+                if not self.wm.hwnd:
+                    self.wm.find_window()
+
+                if not self.wm.hwnd and sys.platform == "win32":
+                    messagebox.showerror("Game Tidak Ditemukan", "Jendela game Tantra belum terdeteksi!\nPastikan game berjalan di layar atau pilih di tombol 'Cek Jendela Game'.")
+                    return None
+
+                # Activate game window and wait for DWM render
+                self.wm.activate_window()
+                time.sleep(0.35)
 
                 client_img = self.screen.capture_client()
-                crop_img = self.bot.get_inventory_slot_crop(client_img, c, r)
+                crop = self.bot.get_inventory_slot_crop(client_img, c, r)
+                return crop
+            except Exception as ex:
+                messagebox.showerror("Error", f"Gagal mengambil slot: {ex}")
+                return None
 
-                save_path = target_dir / f"{name}.png"
-                crop_img.save(save_path)
+        def do_preview():
+            crop = get_active_crop()
+            if crop is None:
+                return
 
-                if target == "storage_blacklist":
-                    self.refresh_storage_blacklist_view()
-                else:
-                    self.refresh_whitelist_view()
+            current_crop[0] = crop
+            is_empty = self.matcher.is_slot_empty(crop)
 
-                win.destroy()
-                messagebox.showinfo("Sukses", f"Berhasil memotong ikon slot [{r+1},{c+1}] dan disimpan ke '{target_name}' sebagai '{name}.png'!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Gagal memotong slot: {e}")
+            # Resize for clear visual display
+            disp_crop = crop.resize((48, 48), Image.Resampling.NEAREST)
+            tk_img = ImageTk.PhotoImage(disp_crop)
+            preview_tk[0] = tk_img
+            lbl_img_prev.config(image=tk_img, text="", width=48, height=48)
 
-        tk.Button(win, text="Potong & Simpan", bg="#238636", fg="#ffffff", relief="flat", padx=12, pady=6, command=do_crop).pack(pady=10)
+            if is_empty:
+                lbl_status.config(text="⚠️ Slot terdeteksi KOSONG / Blank. Pastikan slot ada isinya!", fg="#f85149")
+            else:
+                lbl_status.config(text="✓ Ikon item berhasil tertangkap!", fg="#3fb950")
+
+        def do_save():
+            if current_crop[0] is None:
+                do_preview()
+            if current_crop[0] is None:
+                return
+
+            c = int(col_entry.get().strip())
+            r = int(row_entry.get().strip())
+            name = name_entry.get().strip() or f"item_c{c}_r{r}"
+
+            save_path = target_dir / f"{name}.png"
+            current_crop[0].save(save_path)
+
+            if target == "storage_blacklist":
+                self.refresh_storage_blacklist_view()
+            else:
+                self.refresh_whitelist_view()
+
+            win.destroy()
+            messagebox.showinfo("Sukses", f"Berhasil memotong ikon slot [{r},{c}] dan disimpan ke '{target_name}' sebagai '{name}.png'!")
+
+        btn_bar = tk.Frame(win, bg="#222428")
+        btn_bar.pack(pady=4)
+
+        tk.Button(
+            btn_bar,
+            text="🔍 Ambil / Preview Slot",
+            bg="#1f6feb",
+            fg="#ffffff",
+            font=("Segoe UI", 9, "bold"),
+            relief="flat",
+            padx=12,
+            pady=5,
+            command=do_preview
+        ).pack(side=tk.LEFT, padx=6)
+
+        tk.Button(
+            btn_bar,
+            text="💾 Simpan Ikon",
+            bg="#238636",
+            fg="#ffffff",
+            font=("Segoe UI", 9, "bold"),
+            relief="flat",
+            padx=14,
+            pady=5,
+            command=do_save
+        ).pack(side=tk.LEFT, padx=6)
 
     # =========================================================================
     # TAB 6: Auto Skill
