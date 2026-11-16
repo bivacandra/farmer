@@ -159,13 +159,17 @@ class InputController:
         self._sleep(self.delays.get("post_action_delay_sec", 0.25))
 
     def press_key(self, key_name: str) -> None:
-        """Sends key press (e.g. 'enter', 'esc')."""
-        if self.is_aborted:
-            raise InterruptedError("Operation aborted.")
-
-        key_lower = key_name.lower()
-        if HAS_DIRECT_INPUT:
-            pydirectinput.press(key_lower)
-        elif HAS_PYAUTOGUI:
-            pyautogui.press(key_lower)
-        self._sleep(0.1)
+        """Sends key press (e.g. 'enter', 'esc', 'f1', '1')."""
+        key_lower = key_name.lower().strip()
+        try:
+            if HAS_DIRECT_INPUT:
+                pydirectinput.press(key_lower)
+            elif HAS_PYAUTOGUI:
+                pyautogui.press(key_lower)
+        except Exception:
+            if HAS_PYAUTOGUI:
+                try:
+                    pyautogui.press(key_lower)
+                except Exception:
+                    pass
+        time.sleep(0.04)

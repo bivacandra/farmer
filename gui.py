@@ -1265,6 +1265,7 @@ class FarmerGUI(tk.Tk):
         if self.bot.is_running:
             return
 
+        self.bot.input.reset_abort()
         mode = self.selected_mode.get()
         self.status_badge.config(text=f"RUNNING ({mode})", fg="#ffffff", bg="#238636")
         self.btn_start.config(state=tk.DISABLED)

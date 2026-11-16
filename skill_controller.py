@@ -96,10 +96,9 @@ class SkillController:
             if self.is_running:
                 return
             self.is_running = True
-            # Reset last pressed to now so they trigger according to interval (or trigger immediately)
-            now = time.time()
+            self.input.reset_abort()
             for k in self.last_press_times:
-                self.last_press_times[k] = now
+                self.last_press_times[k] = 0.0
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
             self.log("[Auto Skill] Berjalan...")
@@ -132,7 +131,8 @@ class SkillController:
                         self.last_press_times[key_name] = now
                         with self._lock:
                             self.counts[key_name] = self.counts.get(key_name, 0) + 1
-                        time.sleep(0.06)  # Short delay between consecutive key presses
+                        self.log(f"[Auto Skill] Menekan '{key_name.upper()}' (Total: {self.counts[key_name]})")
+                        time.sleep(0.06)
                     except Exception as e:
                         self.log(f"[Auto Skill] Error menekan {key_name}: {e}")
 
