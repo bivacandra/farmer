@@ -1,0 +1,61 @@
+{
+  "window": {
+    "title_patterns": [
+      "Kathana - The Reign of Shadow",
+      "Kathana",
+      "Tantra"
+    ],
+    "client_width": 1024,
+    "client_height": 768
+  },
+  "delays": {
+    "hover_delay_sec": 0.35,
+    "drag_duration_sec": 0.03,
+    "click_delay_sec": 0.1,
+    "popup_wait_timeout_sec": 2.0,
+    "post_action_delay_sec": 0.25,
+    "hunt_loop_interval_sec": 1.5
+  },
+  "inventory": {
+    "x1": 543,
+    "y1": 282,
+    "x2": 754,
+    "y2": 425,
+    "cols": 6,
+    "rows": 4,
+    "total_slots": 24
+  },
+  "storage": {
+    "x1": 3,
+    "y1": 115,
+    "x2": 364,
+    "y2": 548,
+    "cols": 10,
+    "rows": 12,
+    "total_slots": 120
+  },
+  "merchant": {
+    "x1": 294,
+    "y1": 110,
+    "x2": 470,
+    "y2": 332,
+    "drop_target_x": 505,
+    "drop_target_y": 450,
+    "cols": 1,
+    "rows": 1
+  },
+  "storage_deposit": {
+    "blacklist_enabled": true
+  },
+  "rules": {
+    "empty_slot_threshold": 18.0,
+    "sell_whitelist_match_threshold": 0.5,
+    "auto_confirm_sell": true,
+    "use_ocr_name_fallback": true
+  },
+  "hotkeys": {
+    "start": "f11",
+    "stop": "f12",
+    "emergency_abort": "esc"
+  }
+}
