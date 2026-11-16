@@ -5,6 +5,7 @@ Loads and saves configuration parameters from config.json.
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -17,6 +18,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         ],
         "client_width": 1024,
         "client_height": 768
+    },
+    "security": {
+        "password_hash": "1f406ec232c5a4de95539988e5f9c1a1f6c632544f08ff97f7eb26400102a1de"
     },
     "delays": {
         "hover_delay_sec": 0.35,
@@ -100,7 +104,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 class Config:
     def __init__(self, config_path: str = "config.json"):
-        self.base_dir = Path(__file__).resolve().parent
+        if getattr(sys, "frozen", False):
+            # Running as compiled PyInstaller executable
+            exe_dir = Path(sys.executable).resolve().parent
+            if (exe_dir / config_path).exists():
+                self.base_dir = exe_dir
+            elif hasattr(sys, "_MEIPASS") and (Path(sys._MEIPASS) / config_path).exists():
+                self.base_dir = Path(sys._MEIPASS)
+            else:
+                self.base_dir = exe_dir
+        else:
+            self.base_dir = Path(__file__).resolve().parent
+
         self.config_path = self.base_dir / config_path
         self.data: Dict[str, Any] = self._load()
 

@@ -41,7 +41,8 @@ jobs:
       - name: Compress Release Archive
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/TantraFarmer/* -DestinationPath dist/TantraFarmer-Windows.zip -Force
+          Compress-Archive -Path dist/TantraFarmer -DestinationPath dist/TantraFarmer-Windows.zip -Force
+          Copy-Item dist/TantraFarmer/TantraFarmer.exe -Destination dist/TantraFarmer.exe
 
       - name: Determine Release Tag
         id: release_info
@@ -63,7 +64,7 @@ jobs:
             ### 🚜 Tantra Farmer Macro - Standalone Release (${{ steps.release_info.outputs.tag }})
             
             **Fitur Utama:**
-            - 🔐 **Password Protected**: Aplikasi diproteksi dengan password otentikasi.
+            - 🔐 **Password Protected**: Aplikasi diproteksi dengan password otentikasi (`Mysamsung123`).
             - ⚡ **Auto Skill Macro**: Slot 1-0, F1-F10, E/R/F dengan timer countdown detik mundur real-time.
             - 🎒 **Auto Move Inventory to Storage & Seller**: Mendukung whitelist & blacklist slot scan.
             - 🏹 **Auto Hunt Synchronization**: Integrasi skill berkala saat berburu.
@@ -72,9 +73,10 @@ jobs:
             1. Download file `TantraFarmer-Windows.zip` di bawah ini.
             2. Ekstrak file zip ke folder mana saja di PC Windows Anda.
             3. Jalankan `TantraFarmer.exe`.
-            4. Masukkan password akses saat diminta.
+            4. Masukkan password akses (`Mysamsung123`) saat diminta.
             5. Gunakan hotkey **F11** untuk Mulai dan **F12** untuk Berhenti.
           files: |
             dist/TantraFarmer-Windows.zip
+            dist/TantraFarmer.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

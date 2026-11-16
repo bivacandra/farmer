@@ -26,7 +26,7 @@ from template_matcher import TemplateMatcher
 from ocr_engine import OCREngine
 from farmer_bot import FarmerBot
 from area_selector import AreaSelectorWindow
-from auth import PasswordDialog, hash_password
+from auth import verify_password, hash_password
 
 try:
     import keyboard
@@ -38,24 +38,162 @@ except ImportError:
 class FarmerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.config = Config("config.json")
+        self.configure(bg="#161b22")
+        self.worker_thread = None
+
+        # Start in compact login mode
+        self.title("🔐 Keamanan Akses - Tantra Farmer")
+        self.geometry("440x290")
+        self.resizable(False, False)
+        self._center_window(440, 290)
+
+        # Build Login UI
+        self._build_login_screen()
+
+    def _center_window(self, width, height):
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = max(0, (sw - width) // 2)
+        y = max(0, (sh - height) // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _build_login_screen(self):
+        self.frame_login = tk.Frame(self, bg="#161b22", padx=26, pady=22)
+        self.frame_login.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(
+            self.frame_login,
+            text="🔒 TANTRA FARMER MACRO",
+            font=("Segoe UI", 13, "bold"),
+            bg="#161b22",
+            fg="#58a6ff"
+        ).pack(anchor=tk.CENTER, pady=(0, 4))
+
+        tk.Label(
+            self.frame_login,
+            text="Aplikasi ini diproteksi. Masukkan password akses:",
+            font=("Segoe UI", 9),
+            bg="#161b22",
+            fg="#8b949e"
+        ).pack(anchor=tk.CENTER, pady=(0, 16))
+
+        frame_input = tk.Frame(self.frame_login, bg="#161b22")
+        frame_input.pack(fill=tk.X, pady=(0, 6))
+
+        self.var_login_pwd = tk.StringVar()
+        self.show_login_pwd = False
+
+        self.entry_login_pwd = tk.Entry(
+            frame_input,
+            textvariable=self.var_login_pwd,
+            show="●",
+            font=("Segoe UI", 11),
+            bg="#0d1117",
+            fg="#f0f6fc",
+            insertbackground="#ffffff",
+            relief="solid",
+            bd=1
+        )
+        self.entry_login_pwd.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=(0, 6))
+        self.entry_login_pwd.bind("<Return>", lambda e: self._attempt_login())
+
+        self.btn_eye = tk.Button(
+            frame_input,
+            text="👁",
+            font=("Segoe UI", 10),
+            bg="#21262d",
+            fg="#c9d1d9",
+            activebackground="#30363d",
+            activeforeground="#ffffff",
+            relief="flat",
+            width=3,
+            command=self._toggle_show_pwd
+        )
+        self.btn_eye.pack(side=tk.RIGHT, ipady=2)
+
+        self.lbl_login_status = tk.Label(
+            self.frame_login,
+            text="",
+            font=("Segoe UI", 9, "bold"),
+            bg="#161b22",
+            fg="#f85149"
+        )
+        self.lbl_login_status.pack(anchor=tk.CENTER, pady=(2, 10))
+
+        frame_btns = tk.Frame(self.frame_login, bg="#161b22")
+        frame_btns.pack(fill=tk.X, pady=(4, 0))
+
+        tk.Button(
+            frame_btns,
+            text="🚪 Keluar",
+            font=("Segoe UI", 9),
+            bg="#21262d",
+            fg="#8b949e",
+            activebackground="#30363d",
+            relief="flat",
+            padx=14,
+            pady=6,
+            command=self.destroy
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            frame_btns,
+            text="🔓 Masuk",
+            font=("Segoe UI", 9, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            activebackground="#2ea043",
+            relief="flat",
+            padx=20,
+            pady=6,
+            command=self._attempt_login
+        ).pack(side=tk.RIGHT)
+
+        self.entry_login_pwd.focus_set()
+
+    def _toggle_show_pwd(self):
+        self.show_login_pwd = not self.show_login_pwd
+        if self.show_login_pwd:
+            self.entry_login_pwd.config(show="")
+            self.btn_eye.config(text="🙈")
+        else:
+            self.entry_login_pwd.config(show="●")
+            self.btn_eye.config(text="👁")
+
+    def _attempt_login(self):
+        entered = self.var_login_pwd.get()
+        stored_hash = self.config.get("security", "password_hash", None)
+        if verify_password(entered, stored_hash):
+            self.lbl_login_status.config(text="✓ Akses Diterima!", fg="#3fb950")
+            self.after(150, self._unlock_app)
+        else:
+            self.lbl_login_status.config(text="❌ Password salah! Akses ditolak.")
+            self.entry_login_pwd.delete(0, tk.END)
+            self.entry_login_pwd.focus_set()
+
+    def _unlock_app(self):
+        self.frame_login.destroy()
+
+        # Switch to main dashboard
         self.title("Farmer Macro Tool")
         self.geometry("920x700")
         self.minsize(860, 640)
+        self.resizable(True, True)
+        self._center_window(920, 700)
 
         # Apply dark theme styling
         self._setup_styles()
 
         # Initialize core components
-        self.config = Config("config.json")
         self.wm = WindowManager(self.config)
         self.screen = ScreenCapture(self.wm, self.config)
         self.input = InputController(self.wm, self.config)
         self.matcher = TemplateMatcher(self.config)
         self.ocr = OCREngine(self.config)
         self.bot = FarmerBot(self.wm, self.screen, self.input, self.matcher, self.ocr, self.config)
-
         self.bot.log_callback = self.append_log
-        self.worker_thread = None
 
         # Build UI layout
         self._build_header()
@@ -64,18 +202,6 @@ class FarmerGUI(tk.Tk):
 
         # Setup hotkeys
         self._setup_hotkeys()
-
-        # Hide main window until authenticated with password
-        self.withdraw()
-        self.after(50, self._require_auth)
-
-    def _require_auth(self):
-        PasswordDialog(self, self.config, on_success=self._on_auth_success)
-
-    def _on_auth_success(self):
-        self.deiconify()
-        self.lift()
-        self.focus_force()
 
     def _setup_styles(self):
         self.configure(bg="#18191c")
@@ -1411,5 +1537,21 @@ class FarmerGUI(tk.Tk):
 
 
 if __name__ == "__main__":
-    app = FarmerGUI()
-    app.mainloop()
+    import traceback
+    try:
+        app = FarmerGUI()
+        app.mainloop()
+    except Exception as e:
+        with open("crash.log", "w", encoding="utf-8") as f:
+            traceback.print_exc(file=f)
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror(
+                "Tantra Farmer - Error",
+                f"Aplikasi gagal dimulai:\n\n{traceback.format_exc()}\n\nDetail error telah dicatat di file crash.log"
+            )
+        except Exception:
+            pass
