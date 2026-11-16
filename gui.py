@@ -8,6 +8,7 @@ Includes:
 5. Speed and Delay Configuration (NFR-1)
 """
 
+import math
 import os
 import sys
 import threading
@@ -936,14 +937,14 @@ class FarmerGUI(tk.Tk):
 
         tk.Button(
             btn_bar,
-            text="🔄 Reset Hitungan (Count)",
+            text="🔄 Reset Countdown (Trigger Ulang)",
             font=("Segoe UI", 8),
             bg="#30363d",
             fg="#c9d1d9",
             relief="flat",
             padx=10,
             pady=4,
-            command=self._reset_skill_counts
+            command=self._reset_skill_timers
         ).pack(side=tk.LEFT)
 
         # Scrollable container for keys
@@ -969,6 +970,16 @@ class FarmerGUI(tk.Tk):
             col_left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
             col_right = tk.Frame(sec_frame, bg="#222428")
             col_right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            def add_header(parent):
+                hdr = tk.Frame(parent, bg="#222428", pady=2)
+                hdr.pack(fill=tk.X)
+                tk.Label(hdr, text="Key", bg="#222428", fg="#8b949e", font=("Segoe UI", 8, "bold"), width=5, anchor=tk.W).pack(side=tk.LEFT)
+                tk.Label(hdr, text="Detik", bg="#222428", fg="#8b949e", font=("Segoe UI", 8, "bold"), width=9, anchor=tk.W).pack(side=tk.LEFT)
+                tk.Label(hdr, text="Countdown", bg="#222428", fg="#58a6ff", font=("Segoe UI", 8, "bold"), width=10, anchor=tk.W).pack(side=tk.LEFT)
+
+            add_header(col_left)
+            add_header(col_right)
 
             def add_key_row(parent, key_name):
                 row = tk.Frame(parent, bg="#222428", pady=2)
@@ -997,13 +1008,13 @@ class FarmerGUI(tk.Tk):
                 entry = tk.Entry(row, textvariable=var_sec, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=6, font=("Consolas", 9))
                 entry.pack(side=tk.LEFT, padx=(0, 6))
 
-                lbl_count = tk.Label(row, text="Count: -", bg="#222428", fg="#7ee787", font=("Consolas", 8), width=10, anchor=tk.W)
-                lbl_count.pack(side=tk.LEFT)
+                lbl_countdown = tk.Label(row, text="-", bg="#222428", fg="#8b949e", font=("Consolas", 9, "bold"), width=8, anchor=tk.W)
+                lbl_countdown.pack(side=tk.LEFT)
 
                 self.skill_vars[key_name] = {
                     "enabled": var_en,
                     "interval": var_sec,
-                    "lbl_count": lbl_count
+                    "lbl_countdown": lbl_countdown
                 }
 
             for left_k, right_k in pairs:
@@ -1030,48 +1041,83 @@ class FarmerGUI(tk.Tk):
             [("f1", "f6"), ("f2", "f7"), ("f3", "f8"), ("f4", "f9"), ("f5", "f10")]
         )
 
-        # Start count updater
-        self.after(500, self._update_skill_counts)
+        # Start countdown updater (100ms interval for smooth live countdown)
+        self.after(100, self._update_skill_countdowns)
+
+    def _apply_skill_gui_to_config(self, save_to_disk=False):
+        if not hasattr(self, "skill_vars") or not self.skill_vars:
+            return
+        if "auto_skill" not in self.config.data:
+            self.config.data["auto_skill"] = {}
+        if hasattr(self, "var_skill_enabled"):
+            self.config.data["auto_skill"]["enabled"] = self.var_skill_enabled.get()
+        if hasattr(self, "var_skill_sync_hunt"):
+            self.config.data["auto_skill"]["sync_with_auto_hunt"] = self.var_skill_sync_hunt.get()
+
+        if "keys" not in self.config.data["auto_skill"]:
+            self.config.data["auto_skill"]["keys"] = {}
+
+        for k, widgets in self.skill_vars.items():
+            try:
+                sec_val = float(widgets["interval"].get().strip())
+            except ValueError:
+                sec_val = 10.0
+            self.config.data["auto_skill"]["keys"][k] = {
+                "enabled": widgets["enabled"].get(),
+                "interval": max(0.1, sec_val)
+            }
+
+        if save_to_disk:
+            self.config.save()
 
     def _save_skill_settings(self):
         try:
-            if "auto_skill" not in self.config.data:
-                self.config.data["auto_skill"] = {}
-            self.config.data["auto_skill"]["enabled"] = self.var_skill_enabled.get()
-            self.config.data["auto_skill"]["sync_with_auto_hunt"] = self.var_skill_sync_hunt.get()
-
-            if "keys" not in self.config.data["auto_skill"]:
-                self.config.data["auto_skill"]["keys"] = {}
-
-            for k, widgets in self.skill_vars.items():
-                try:
-                    sec_val = float(widgets["interval"].get().strip())
-                except ValueError:
-                    sec_val = 10.0
-                self.config.data["auto_skill"]["keys"][k] = {
-                    "enabled": widgets["enabled"].get(),
-                    "interval": max(0.1, sec_val)
-                }
-
-            self.config.save()
+            self._apply_skill_gui_to_config(save_to_disk=True)
             messagebox.showinfo("Sukses", "Pengaturan Auto Skill berhasil disimpan!")
         except Exception as e:
             messagebox.showerror("Error", f"Gagal menyimpan skill: {e}")
 
-    def _reset_skill_counts(self):
-        self.bot.skills.reset_counts()
+    def _reset_skill_timers(self):
+        self.bot.skills.reset_timers()
         for k, widgets in self.skill_vars.items():
-            widgets["lbl_count"].config(text="Count: 0")
+            widgets["lbl_countdown"].config(text="-", fg="#8b949e")
 
-    def _update_skill_counts(self):
+    def _update_skill_countdowns(self):
         try:
-            counts = self.bot.skills.counts
+            is_running = self.bot.skills.is_running
+            now = time.time()
             for k, widgets in self.skill_vars.items():
-                c = counts.get(k, 0)
-                widgets["lbl_count"].config(text=f"Count: {c}")
+                is_enabled = widgets["enabled"].get()
+                lbl = widgets["lbl_countdown"]
+
+                if not is_running or not is_enabled:
+                    lbl.config(text="-", fg="#8b949e")
+                    continue
+
+                try:
+                    interval = float(widgets["interval"].get().strip())
+                except ValueError:
+                    interval = 10.0
+
+                last_t = self.bot.skills.last_press_times.get(k, 0.0)
+                if last_t <= 0.0:
+                    disp = "0.0s"
+                    fg_color = "#e3b341"
+                else:
+                    elapsed = now - last_t
+                    remaining = max(0.0, interval - elapsed)
+                    if remaining >= 10.0:
+                        disp = f"{int(math.ceil(remaining))}s"
+                    elif remaining > 0.0:
+                        disp = f"{remaining:.1f}s"
+                    else:
+                        disp = "0.0s"
+                    fg_color = "#e3b341" if remaining <= 1.0 else "#7ee787"
+
+                lbl.config(text=disp, fg=fg_color)
         except Exception:
             pass
-        self.after(500, self._update_skill_counts)
+        self.after(100, self._update_skill_countdowns)
 
     # =========================================================================
     # TAB 7: Settings
@@ -1265,6 +1311,7 @@ class FarmerGUI(tk.Tk):
         if self.bot.is_running:
             return
 
+        self._apply_skill_gui_to_config(save_to_disk=False)
         self.bot.input.reset_abort()
         mode = self.selected_mode.get()
         self.status_badge.config(text=f"RUNNING ({mode})", fg="#ffffff", bg="#238636")

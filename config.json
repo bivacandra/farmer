@@ -103,15 +103,15 @@
         "interval": 10.0
       },
       "e": {
-        "enabled": false,
+        "enabled": true,
         "interval": 10.0
       },
       "r": {
-        "enabled": false,
-        "interval": 10.0
+        "enabled": true,
+        "interval": 5.0
       },
       "f": {
-        "enabled": false,
+        "enabled": true,
         "interval": 10.0
       },
       "f1": {

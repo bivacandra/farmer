@@ -91,6 +91,14 @@ class SkillController:
             for k in self.counts:
                 self.counts[k] = 0
 
+    def reset_timers(self):
+        with self._lock:
+            for k in self.last_press_times:
+                self.last_press_times[k] = 0.0
+            for k in self.counts:
+                self.counts[k] = 0
+        self.log("[Auto Skill] Countdown di-reset.")
+
     def start(self):
         with self._lock:
             if self.is_running:
