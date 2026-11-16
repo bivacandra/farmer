@@ -205,5 +205,7 @@ class TemplateMatcher:
             except Exception as e:
                 print(f"[TemplateMatcher] Error matching {icon_path}: {e}")
 
-        is_match = bool(best_score >= threshold)
+        # Toleransi: jika skor sama dengan threshold (misal 0.70 == 0.70) atau lebih -> Cocok (JANGAN dieksekusi)
+        # Hanya dieksekusi jika skor benar-benar kurang dari threshold
+        is_match = bool(round(best_score, 2) >= round(threshold, 2) or best_score >= (threshold - 1e-4))
         return is_match, best_name, float(best_score)

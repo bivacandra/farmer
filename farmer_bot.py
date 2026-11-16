@@ -388,15 +388,16 @@ class FarmerBot:
                     # 2. Cek apakah item masuk BLACKLIST JUAL NPC (Item yang TIDAK dijual)
                     is_blacklisted = False
                     bl_name = None
-                    score = 0.0
                     if bl_icons:
                         is_blacklisted, bl_name, score = self.matcher.match_item_in_whitelist(
                             slot_crop, whitelist_dir=self.config.merchant_blacklist_dir, threshold=threshold
                         )
+                        # Toleransi: jika skor sama dengan threshold (misal 0.70 == 0.70) atau lebih -> JANGAN DIJUAL
+                        if round(score, 2) >= round(threshold, 2) or score >= (threshold - 1e-4):
+                            is_blacklisted = True
 
-                    if bl_icons:
                         status_str = "🛑 BLACKLIST (TIDAK DIJUAL)" if is_blacklisted else "💰 AKAN DIJUAL"
-                        self.log(f"Slot #{slot_idx} [B:{r+1}, K:{c+1}]: Match '{bl_name}'={score:.2f} (Min:{threshold}) -> {status_str}")
+                        self.log(f"Slot #{slot_idx} [B:{r+1}, K:{c+1}]: Match '{bl_name}'={score:.2f} (Min:{threshold:.2f}) -> {status_str}")
 
                     if is_blacklisted:
                         continue
@@ -460,9 +461,12 @@ class FarmerBot:
                         is_blacklisted = False
                         bl_name = None
                         if blacklist_enabled and blacklist_icons:
-                            is_blacklisted, bl_name, _ = self.matcher.match_item_in_whitelist(
-                                slot_crop, whitelist_dir=self.config.storage_blacklist_dir
+                            th_hunt = float(self.config.get("rules", "sell_whitelist_match_threshold", 0.50))
+                            is_blacklisted, bl_name, sc = self.matcher.match_item_in_whitelist(
+                                slot_crop, whitelist_dir=self.config.storage_blacklist_dir, threshold=th_hunt
                             )
+                            if round(sc, 2) >= round(th_hunt, 2) or sc >= (th_hunt - 1e-4):
+                                is_blacklisted = True
 
                         if not is_blacklisted:
                             slot_idx = (r * cols) + c + 1

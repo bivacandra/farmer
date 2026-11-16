@@ -1406,20 +1406,6 @@ class FarmerGUI(tk.Tk):
             command=self.save_settings
         ).pack(anchor=tk.W, pady=15)
 
-    def save_settings(self):
-        try:
-            for (sec, key), e in self.entries.items():
-                val_str = e.get().strip()
-                if "." in val_str:
-                    val = float(val_str)
-                else:
-                    val = int(val_str)
-                self.config.set(sec, key, val)
-            self.config.save()
-            messagebox.showinfo("Sukses", "Pengaturan berhasil disimpan!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Gagal menyimpan: {e}")
-
         # Security & Password Change
         sec_box = tk.LabelFrame(container, text=" 🔐 Keamanan & Ganti Password Akses ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
         sec_box.pack(fill=tk.X, pady=(15, 0))
@@ -1446,6 +1432,20 @@ class FarmerGUI(tk.Tk):
             pady=4,
             command=self._change_password
         ).pack(anchor=tk.W, pady=(8, 0))
+
+    def save_settings(self):
+        try:
+            for (sec, key), e in self.entries.items():
+                val_str = e.get().strip()
+                if "." in val_str:
+                    val = float(val_str)
+                else:
+                    val = int(val_str)
+                self.config.set(sec, key, val)
+            self.config.save()
+            messagebox.showinfo("Sukses", "Pengaturan berhasil disimpan!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal menyimpan: {e}")
 
     def _change_password(self):
         p1 = self.entry_new_pwd.get().strip()
