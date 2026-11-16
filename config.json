@@ -8,6 +8,9 @@
     "client_width": 1024,
     "client_height": 768
   },
+  "security": {
+    "password_hash": "1f406ec232c5a4de95539988e5f9c1a1f6c632544f08ff97f7eb26400102a1de"
+  },
   "delays": {
     "hover_delay_sec": 0.35,
     "drag_duration_sec": 0.03,

@@ -87,10 +87,30 @@ Anda dapat mengubah pengaturan langsung dari tab **"Pengaturan & Delay"** di GUI
 
 ---
 
-## 🧪 Pengujian Offline / Diagnostik
+## 🔐 Proteksi Password Akses
 
-Untuk memverifikasi modul deteksi pop-up, template matching, dan parsing OCR tanpa membuka game:
-```bash
-python test_macro.py
+Aplikasi ini diproteksi dengan verifikasi hash SHA-256:
+* **Password Default:** `Mysamsung123`
+* Anda dapat mengubah password ini kapan saja melalui **Tab 7 (Pengaturan) -> Keamanan & Ganti Password Akses**.
+* Password tidak pernah disimpan dalam bentuk teks biasa (hanya hash terenkripsi dengan salt).
+
+---
+
+## 📦 Build Standalone Executable (.exe) & GitHub Release
+
+### Build Lokal di Windows:
+Cukup dobel-klik file:
+```bat
+build_exe.bat
 ```
-Hasil uji offline akan memvalidasi template tombol OK pop-up, pencocokan ikon whitelist, serta parser kuantitas tooltip.
+Script akan otomatis menginstall PyInstaller, membungkus seluruh dependensi dan aset ke dalam:
+* `dist\TantraFarmer\TantraFarmer.exe`
+* `dist\TantraFarmer-Windows.zip` (siap didistribusikan).
+
+### Rilis Otomatis via GitHub Actions:
+Buat git tag rilis (misal `v1.0.0`):
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+GitHub Actions akan secara otomatis mengompilasi file `.exe` di runner Windows dan mengunggah paket ZIP ke halaman **Releases** repositori GitHub Anda.

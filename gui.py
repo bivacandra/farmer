@@ -26,6 +26,7 @@ from template_matcher import TemplateMatcher
 from ocr_engine import OCREngine
 from farmer_bot import FarmerBot
 from area_selector import AreaSelectorWindow
+from auth import PasswordDialog, hash_password
 
 try:
     import keyboard
@@ -63,6 +64,18 @@ class FarmerGUI(tk.Tk):
 
         # Setup hotkeys
         self._setup_hotkeys()
+
+        # Hide main window until authenticated with password
+        self.withdraw()
+        self.after(50, self._require_auth)
+
+    def _require_auth(self):
+        PasswordDialog(self, self.config, on_success=self._on_auth_success)
+
+    def _on_auth_success(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
     def _setup_styles(self):
         self.configure(bg="#18191c")
@@ -1174,6 +1187,50 @@ class FarmerGUI(tk.Tk):
             messagebox.showinfo("Sukses", "Pengaturan berhasil disimpan!")
         except Exception as e:
             messagebox.showerror("Error", f"Gagal menyimpan: {e}")
+
+        # Security & Password Change
+        sec_box = tk.LabelFrame(container, text=" 🔐 Keamanan & Ganti Password Akses ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
+        sec_box.pack(fill=tk.X, pady=(15, 0))
+
+        sec_grid = tk.Frame(sec_box, bg="#222428")
+        sec_grid.pack(anchor=tk.W)
+
+        tk.Label(sec_grid, text="Password Baru:", bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=0, column=0, sticky=tk.W, pady=4, padx=(0, 10))
+        self.entry_new_pwd = tk.Entry(sec_grid, bg="#161b22", fg="#e1e2e6", show="●", insertbackground="#ffffff", width=20, font=("Segoe UI", 9))
+        self.entry_new_pwd.grid(row=0, column=1, sticky=tk.W, pady=4)
+
+        tk.Label(sec_grid, text="Konfirmasi Password:", bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=1, column=0, sticky=tk.W, pady=4, padx=(0, 10))
+        self.entry_confirm_pwd = tk.Entry(sec_grid, bg="#161b22", fg="#e1e2e6", show="●", insertbackground="#ffffff", width=20, font=("Segoe UI", 9))
+        self.entry_confirm_pwd.grid(row=1, column=1, sticky=tk.W, pady=4)
+
+        tk.Button(
+            sec_box,
+            text="🔑 Perbarui Password Akses",
+            font=("Segoe UI", 9, "bold"),
+            bg="#30363d",
+            fg="#58a6ff",
+            relief="flat",
+            padx=12,
+            pady=4,
+            command=self._change_password
+        ).pack(anchor=tk.W, pady=(8, 0))
+
+    def _change_password(self):
+        p1 = self.entry_new_pwd.get().strip()
+        p2 = self.entry_confirm_pwd.get().strip()
+        if not p1:
+            messagebox.showwarning("Peringatan", "Password baru tidak boleh kosong!")
+            return
+        if p1 != p2:
+            messagebox.showerror("Error", "Password baru dan konfirmasi tidak cocok!")
+            return
+
+        new_hash = hash_password(p1)
+        self.config.set("security", "password_hash", new_hash)
+        self.config.save()
+        self.entry_new_pwd.delete(0, tk.END)
+        self.entry_confirm_pwd.delete(0, tk.END)
+        messagebox.showinfo("Sukses", "Password akses aplikasi berhasil diperbarui!")
 
     def _build_footer(self):
         footer = tk.Frame(self, bg="#161b22", height=24, padx=12, pady=4)
