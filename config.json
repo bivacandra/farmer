@@ -62,24 +62,24 @@
     "emergency_abort": "esc"
   },
   "auto_skill": {
-    "enabled": true,
+    "enabled": false,
     "sync_with_auto_hunt": true,
     "keys": {
       "1": {
         "enabled": false,
-        "interval": 4.0
+        "interval": 10.0
       },
       "2": {
         "enabled": false,
-        "interval": 2.0
+        "interval": 10.0
       },
       "3": {
         "enabled": false,
-        "interval": 50.0
+        "interval": 10.0
       },
       "4": {
         "enabled": false,
-        "interval": 300.0
+        "interval": 10.0
       },
       "5": {
         "enabled": false,
@@ -106,24 +106,24 @@
         "interval": 10.0
       },
       "e": {
-        "enabled": true,
+        "enabled": false,
         "interval": 10.0
       },
       "r": {
-        "enabled": true,
-        "interval": 5.0
+        "enabled": false,
+        "interval": 10.0
       },
       "f": {
-        "enabled": true,
+        "enabled": false,
         "interval": 10.0
       },
       "f1": {
-        "enabled": true,
+        "enabled": false,
         "interval": 10.0
       },
       "f2": {
         "enabled": false,
-        "interval": 210.0
+        "interval": 10.0
       },
       "f3": {
         "enabled": false,

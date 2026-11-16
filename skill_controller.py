@@ -10,13 +10,13 @@ from typing import Dict, Any, Callable, Optional
 
 
 DEFAULT_SKILL_CONFIG = {
-    "enabled": True,
+    "enabled": False,
     "sync_with_auto_hunt": True,
     "keys": {
-        "1": {"enabled": True, "interval": 4.0},
-        "2": {"enabled": True, "interval": 2.0},
-        "3": {"enabled": False, "interval": 50.0},
-        "4": {"enabled": False, "interval": 300.0},
+        "1": {"enabled": False, "interval": 10.0},
+        "2": {"enabled": False, "interval": 10.0},
+        "3": {"enabled": False, "interval": 10.0},
+        "4": {"enabled": False, "interval": 10.0},
         "5": {"enabled": False, "interval": 10.0},
         "6": {"enabled": False, "interval": 10.0},
         "7": {"enabled": False, "interval": 10.0},
@@ -26,8 +26,8 @@ DEFAULT_SKILL_CONFIG = {
         "e": {"enabled": False, "interval": 10.0},
         "r": {"enabled": False, "interval": 10.0},
         "f": {"enabled": False, "interval": 10.0},
-        "f1": {"enabled": True, "interval": 200.0},
-        "f2": {"enabled": True, "interval": 210.0},
+        "f1": {"enabled": False, "interval": 10.0},
+        "f2": {"enabled": False, "interval": 10.0},
         "f3": {"enabled": False, "interval": 10.0},
         "f4": {"enabled": False, "interval": 10.0},
         "f5": {"enabled": False, "interval": 10.0},
