@@ -102,6 +102,18 @@ class WindowManager:
         print(f"[WindowManager] Window matching patterns {title_patterns} not found.")
         return False
 
+    def is_foreground(self) -> bool:
+        """Returns True if the Tantra window is currently the active foreground window."""
+        if sys.platform != "win32":
+            return True
+        if not self.hwnd:
+            return False
+        try:
+            import ctypes
+            return ctypes.windll.user32.GetForegroundWindow() == self.hwnd
+        except Exception:
+            return False
+
     def activate_window(self) -> bool:
         """Brings the game window to foreground."""
         if sys.platform != "win32":

@@ -440,6 +440,9 @@ class FarmerBot:
         self.log("Macro akan otomatis memindahkan item drop selain Blacklist ke Gudang saat hunt.")
         self.log("Tekan F12 atau Esc kapan saja untuk menghentikan.")
 
+        self.wm.activate_window()
+        time.sleep(0.3)
+
         inv = self.config.get("inventory")
         cols = inv.get("cols", 6)
         rows = inv.get("rows", 4)
@@ -454,6 +457,11 @@ class FarmerBot:
 
         try:
             while self.is_running:
+                # Pastikan game Tantra berada di foreground sebelum capture agar tidak tertutup GUI atau window lain
+                if not self.wm.is_foreground():
+                    self.wm.activate_window()
+                    time.sleep(0.15)
+
                 # 1. Pindai tas secara pasif (screen capture tanpa gerak mouse)
                 client_img = self.screen.capture_client()
                 blacklist_icons = list(self.config.storage_blacklist_dir.glob("*.png")) + list(self.config.storage_blacklist_dir.glob("*.jpg"))

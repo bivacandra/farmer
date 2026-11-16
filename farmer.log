@@ -1,0 +1,74 @@
+[14:54:30] [FarmerBot] Memulai tugas: Inventory ke Storage...
+[14:54:30] [FarmerBot] Slot #1 [B:1, K:1]: Match 'Amrita'=0.66 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:30] [FarmerBot] Slot #8 [B:2, K:2]: Match 'Panaka'=0.66 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Slot #15 [B:3, K:3]: Match 'CharmOfHero'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Slot #19 [B:4, K:1]: Match 'CharmRedHero'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Slot #22 [B:4, K:4]: Match 'Pustika'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Slot #23 [B:4, K:5]: Match 'ZivaPustika'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Slot #24 [B:4, K:6]: Match 'Candy'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:31] [FarmerBot] Selesai! Berhasil memindahkan 0 item ke Storage.
+[14:54:36] [FarmerBot] Memulai tugas: Inventory ke Storage...
+[14:54:37] [FarmerBot] Slot #1 [B:1, K:1]: Match 'Amrita'=0.66 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #8 [B:2, K:2]: Match 'Panaka'=0.66 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #11 [B:2, K:5]: Match 'CharmOfHero'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #19 [B:4, K:1]: Match 'CharmRedHero'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #22 [B:4, K:4]: Match 'Pustika'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #23 [B:4, K:5]: Match 'ZivaPustika'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Slot #24 [B:4, K:6]: Match 'Candy'=1.00 (Min:0.50) -> 🛑 BLACKLIST GUDANG (TINGGAL DI TAS)
+[14:54:37] [FarmerBot] Selesai! Berhasil memindahkan 0 item ke Storage.
+[14:55:49] [FarmerBot] Memulai Mode AUTO HUNT: Monitoring tas aktif (Interval cek: 1.5s).
+[14:55:49] [FarmerBot] Macro akan otomatis memindahkan item drop selain Blacklist ke Gudang saat hunt.
+[14:55:49] [FarmerBot] Tekan F12 atau Esc kapan saja untuk menghentikan.
+[14:55:49] [FarmerBot] [Auto Skill] Berjalan...
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #1 [B:1, K:1]: Match 'CharmOfHero'=0.31 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #2 [B:1, K:2]: Match 'CharmOfHero'=0.31 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #3 [B:1, K:3]: Match 'CharmOfHero'=0.31 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #4 [B:1, K:4]: Match 'CharmOfHero'=0.31 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #5 [B:1, K:5]: Match 'CharmOfHero'=0.31 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #6 [B:1, K:6]: Match 'Candy'=0.18 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #8 [B:2, K:2]: Match 'CharmOfHero'=0.30 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Skill] Menekan '1' (Total: 1)
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #9 [B:2, K:3]: Match 'ZivaPustika'=0.25 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #10 [B:2, K:4]: Match 'CharmOfHero'=0.30 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #11 [B:2, K:5]: Match 'CharmOfHero'=0.28 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #12 [B:2, K:6]: Match 'Candy'=0.18 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #18 [B:3, K:6]: Match 'Candy'=0.18 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #19 [B:4, K:1]: Match 'Panaka'=0.28 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #20 [B:4, K:2]: Match 'Panaka'=0.27 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #21 [B:4, K:3]: Match 'Panaka'=0.27 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #22 [B:4, K:4]: Match 'Panaka'=0.37 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #23 [B:4, K:5]: Match 'CharmOfHero'=0.19 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Slot #24 [B:4, K:6]: Match 'Candy'=0.18 (Min:0.50) -> 📦 AKAN DIPINDAH
+[14:55:50] [FarmerBot] [Auto Hunt] Terdeteksi 18 item untuk dipindahkan ke Gudang...
+[14:55:50] [FarmerBot] [Auto Hunt] Pindah Slot #1 (Match 'CharmOfHero'=0.31 < Min:0.50) -> Storage Kosong #11 [2,1]...
+[14:55:50] [FarmerBot] [Auto Skill] Menekan '2' (Total: 1)
+[14:55:50] [FarmerBot] [Auto Skill] Menekan 'F1' (Total: 1)
+[14:55:50] [FarmerBot] [Auto Skill] Menekan 'F2' (Total: 1)
+[14:55:51] [FarmerBot] [Auto Hunt] Pindah Slot #2 (Match 'CharmOfHero'=0.31 < Min:0.50) -> Storage Kosong #11 [2,1]...
+[14:55:52] [FarmerBot] [Auto Skill] Menekan '2' (Total: 2)
+[14:55:52] [FarmerBot] [Auto Hunt] Pindah Slot #3 (Match 'CharmOfHero'=0.31 < Min:0.50) -> Storage Kosong #14 [2,4]...
+[14:55:53] [FarmerBot] [Auto Hunt] Pindah Slot #4 (Match 'CharmOfHero'=0.31 < Min:0.50) -> Storage Kosong #14 [2,4]...
+[14:55:54] [FarmerBot] [Auto Skill] Menekan '1' (Total: 2)
+[14:55:54] [FarmerBot] [Auto Skill] Menekan '2' (Total: 3)
+[14:55:54] [FarmerBot] [Auto Hunt] Pindah Slot #5 (Match 'CharmOfHero'=0.31 < Min:0.50) -> Storage Kosong #32 [4,2]...
+[14:55:55] [FarmerBot] [Auto Hunt] Pindah Slot #6 (Match 'Candy'=0.18 < Min:0.50) -> Storage Kosong #33 [4,3]...
+[14:55:56] [FarmerBot] [Auto Skill] Menekan '2' (Total: 4)
+[14:55:56] [FarmerBot] [Auto Hunt] Pindah Slot #8 (Match 'CharmOfHero'=0.30 < Min:0.50) -> Storage Kosong #33 [4,3]...
+[14:55:57] [FarmerBot] [Auto Hunt] Pindah Slot #9 (Match 'ZivaPustika'=0.25 < Min:0.50) -> Storage Kosong #33 [4,3]...
+[14:55:58] [FarmerBot] [Auto Skill] Menekan '1' (Total: 3)
+[14:55:58] [FarmerBot] [Auto Skill] Menekan '2' (Total: 5)
+[14:55:58] [FarmerBot] [Auto Hunt] Pindah Slot #10 (Match 'CharmOfHero'=0.30 < Min:0.50) -> Storage Kosong #42 [5,2]...
+[14:56:00] [FarmerBot] [Auto Hunt] Pindah Slot #11 (Match 'CharmOfHero'=0.28 < Min:0.50) -> Storage Kosong #49 [5,9]...
+[14:56:00] [FarmerBot] [Auto Skill] Menekan '2' (Total: 6)
+[14:56:01] [FarmerBot] [Auto Hunt] Pindah Slot #12 (Match 'Candy'=0.18 < Min:0.50) -> Storage Kosong #49 [5,9]...
+[14:56:02] [FarmerBot] [Auto Skill] Menekan '1' (Total: 4)
+[14:56:02] [FarmerBot] [Auto Hunt] Pindah Slot #18 (Match 'Candy'=0.18 < Min:0.50) -> Storage Kosong #49 [5,9]...
+[14:56:02] [FarmerBot] [Auto Skill] Menekan '2' (Total: 7)
+[14:56:03] [FarmerBot] [Auto Hunt] Pindah Slot #19 (Match 'Panaka'=0.28 < Min:0.50) -> Storage Kosong #49 [5,9]...
+[14:56:04] [FarmerBot] [Auto Hunt] Pindah Slot #20 (Match 'Panaka'=0.27 < Min:0.50) -> Storage Kosong #65 [7,5]...
+[14:56:04] [FarmerBot] [Auto Skill] Menekan '2' (Total: 8)
+[14:56:05] [FarmerBot] [Auto Hunt] Pindah Slot #21 (Match 'Panaka'=0.27 < Min:0.50) -> Storage Kosong #65 [7,5]...
+[14:56:06] [FarmerBot] [Auto Skill] Menekan '1' (Total: 5)
+[14:56:06] [FarmerBot] [Auto Skill] Menekan '2' (Total: 9)
+[14:56:206] [FarmerBot] [Auto Hunt] Pindah Slot #22 (Match 'Panaka'=0.37 < Min:0.50) -> Storage Kosong #67 [7,7]...
+[14:56:07] [FarmerBot] [Auto Hunt] Pindah Slot #23 (Match 'CharmOfHero'=0.19 < Min:0.50) -> Storage Kosong #69 [7,9]...

@@ -1612,6 +1612,10 @@ class FarmerGUI(tk.Tk):
 
         def runner():
             try:
+                # Bawa game window ke foreground sebelum macro mulai berinteraksi
+                self.wm.activate_window()
+                time.sleep(0.3)
+
                 if mode == "hunt_auto_deposit":
                     self.bot.run_hunt_auto_deposit()
                 elif mode == "auto_skill_standalone":
