@@ -50,6 +50,7 @@ hidden_imports = [
     'screen',
     'skill_controller',
     'template_matcher',
+    'updater',
     'window_manager',
 ]
 

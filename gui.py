@@ -19,6 +19,7 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
 from config import Config, APP_VERSION
+from updater import check_for_updates, download_update, apply_update_and_restart
 from window_manager import WindowManager
 from screen import ScreenCapture
 from input_controller import InputController
@@ -206,6 +207,9 @@ class FarmerGUI(tk.Tk):
         # Auto-detect game window on startup/login
         self.after(300, self._auto_detect_game_window)
 
+        # Background update check from GitHub Releases
+        self.after(1000, lambda: self._check_update_in_background(silent=True))
+
     def _auto_detect_game_window(self):
         found = self.wm.find_window()
         if found:
@@ -240,6 +244,7 @@ class FarmerGUI(tk.Tk):
     def _build_header(self):
         header_frame = tk.Frame(self, bg="#202225", height=60, padx=16, pady=10)
         header_frame.pack(fill=tk.X)
+        self.header_frame = header_frame
 
         title_lbl = tk.Label(
             header_frame,
@@ -1540,8 +1545,11 @@ class FarmerGUI(tk.Tk):
         )
         tk.Label(info_box, text=info_text, bg="#222428", fg="#c9d1d9", font=("Segoe UI", 9), justify=tk.LEFT).pack(anchor=tk.W)
 
+        btn_info_row = tk.Frame(info_box, bg="#222428")
+        btn_info_row.pack(anchor=tk.W, pady=(8, 0))
+
         tk.Button(
-            info_box,
+            btn_info_row,
             text=f"🛡️ Tes Tutup Popup Storage Sekarang [{pop_k}]",
             font=("Segoe UI", 9, "bold"),
             bg="#d29922",
@@ -1550,7 +1558,19 @@ class FarmerGUI(tk.Tk):
             padx=12,
             pady=4,
             command=lambda: self.run_specific_task("dismiss_popup")
-        ).pack(anchor=tk.W, pady=(8, 0))
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_info_row,
+            text="🔄 Cek Pembaruan (Auto-Update)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            relief="flat",
+            padx=12,
+            pady=4,
+            command=lambda: self._check_update_in_background(silent=False)
+        ).pack(side=tk.LEFT)
 
     def save_settings(self):
         try:
@@ -1804,6 +1824,156 @@ class FarmerGUI(tk.Tk):
         self.status_badge.config(text="IDLE (F11 Mulai | F12 Stop)", fg="#3fb950", bg="#161b22")
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL)
+
+    # =========================================================================
+    # AUTO-UPDATER & NOTIFIKASI PEMBARUAN
+    # =========================================================================
+    def _check_update_in_background(self, silent: bool = True):
+        def _bg():
+            try:
+                info = check_for_updates(APP_VERSION)
+                if info:
+                    self.after(0, lambda: self._on_update_found(info, silent=silent))
+                elif not silent:
+                    self.after(0, lambda: messagebox.showinfo("Pembaruan", f"Aplikasi Anda sudah versi terbaru ({APP_VERSION})."))
+            except Exception as e:
+                if not silent:
+                    self.after(0, lambda: messagebox.showerror("Gagal Cek Update", f"Terjadi kesalahan saat memeriksa update: {e}"))
+
+        threading.Thread(target=_bg, daemon=True).start()
+
+    def _on_update_found(self, update_info: dict, silent: bool = False):
+        latest = update_info.get("latest_version", "")
+        # Tampilkan badge/tombol update di header jika belum ada
+        if hasattr(self, "header_frame") and self.header_frame.winfo_exists():
+            if not hasattr(self, "btn_update_pill") or not self.btn_update_pill.winfo_exists():
+                self.btn_update_pill = tk.Button(
+                    self.header_frame,
+                    text=f"⚡ Update {latest} Tersedia!",
+                    font=("Segoe UI", 9, "bold"),
+                    bg="#d29922",
+                    fg="#0d1117",
+                    activebackground="#e3b341",
+                    relief="flat",
+                    padx=8,
+                    pady=2,
+                    command=lambda: self.prompt_update(update_info)
+                )
+                self.btn_update_pill.pack(side=tk.LEFT, padx=(10, 0))
+
+        self.append_log(f"🔔 Pembaruan tersedia: {latest} (versi saat ini: {APP_VERSION}).")
+
+        # Tampilkan pop-up dialog konfirmasi update
+        self.prompt_update(update_info)
+
+    def prompt_update(self, update_info: dict):
+        latest = update_info.get("latest_version", "")
+        size_mb = update_info.get("asset_size", 0) / (1024 * 1024)
+        notes = update_info.get("release_notes", "").strip()
+        if len(notes) > 220:
+            notes = notes[:217] + "..."
+
+        msg = (
+            f"Versi Baru Tersedia: {latest}\n"
+            f"Versi Anda Saat Ini: {APP_VERSION}\n"
+            f"Ukuran File: {size_mb:.1f} MB\n\n"
+        )
+        if notes:
+            msg += f"Catatan Rilis:\n{notes}\n\n"
+        msg += "Apakah Anda ingin memperbarui secara otomatis sekarang?\n(Pengaturan & Ikon kalibrasi Anda tetap aman)."
+
+        ans = messagebox.askyesno("Pembaruan Tersedia", msg)
+        if ans:
+            self.start_download_update(update_info)
+
+    def start_download_update(self, update_info: dict):
+        latest = update_info.get("latest_version", "")
+        url = update_info.get("download_url", "")
+        if not url:
+            messagebox.showerror("Error", "URL unduhan pembaruan tidak ditemukan.")
+            return
+
+        # Modal dialog progres unduh
+        dlg = tk.Toplevel(self)
+        dlg.title(f"Mengunduh Pembaruan {latest}")
+        dlg.geometry("450x180")
+        dlg.configure(bg="#222428")
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        sw = dlg.winfo_screenwidth()
+        sh = dlg.winfo_screenheight()
+        dlg.geometry(f"450x180+{(sw - 450) // 2}+{(sh - 180) // 2}")
+
+        tk.Label(
+            dlg,
+            text=f"Mengunduh TantraFarmer {latest}...",
+            font=("Segoe UI", 11, "bold"),
+            bg="#222428",
+            fg="#58a6ff"
+        ).pack(pady=(16, 6))
+
+        pbar = ttk.Progressbar(dlg, orient="horizontal", length=380, mode="determinate")
+        pbar.pack(pady=8)
+
+        lbl_status = tk.Label(
+            dlg,
+            text="Menghubungkan ke server GitHub...",
+            font=("Segoe UI", 9),
+            bg="#222428",
+            fg="#c9d1d9"
+        )
+        lbl_status.pack(pady=4)
+
+        is_cancelled = False
+
+        def on_cancel():
+            nonlocal is_cancelled
+            is_cancelled = True
+            dlg.destroy()
+
+        btn_cancel = tk.Button(dlg, text="Batal", bg="#30363d", fg="#e1e2e6", relief="flat", padx=12, pady=4, command=on_cancel)
+        btn_cancel.pack(pady=(6, 0))
+
+        def _download_thread():
+            try:
+                def progress_cb(dl, total):
+                    if is_cancelled:
+                        return
+                    pct = int((dl / total) * 100) if total > 0 else 0
+                    dl_mb = dl / (1024 * 1024)
+                    tot_mb = total / (1024 * 1024)
+
+                    def update_ui():
+                        pbar["value"] = pct
+                        lbl_status.config(text=f"{dl_mb:.1f} MB / {tot_mb:.1f} MB ({pct}%)")
+
+                    dlg.after(0, update_ui)
+
+                target_dir = self.config.base_dir
+                new_file = download_update(url, target_dir, progress_callback=progress_cb, cancel_flag=lambda: is_cancelled)
+
+                if is_cancelled:
+                    return
+
+                def on_done():
+                    lbl_status.config(text="✓ Unduhan selesai! Menerapkan pembaruan & restart...", fg="#7ee787")
+                    btn_cancel.config(state=tk.DISABLED)
+                    dlg.after(600, lambda: apply_update_and_restart(new_file))
+
+                dlg.after(0, on_done)
+            except InterruptedError:
+                pass
+            except Exception as e:
+                def on_err():
+                    if dlg.winfo_exists():
+                        dlg.destroy()
+                    messagebox.showerror("Gagal Update", f"Error saat mengunduh pembaruan: {e}")
+
+                dlg.after(0, on_err)
+
+        threading.Thread(target=_download_thread, daemon=True).start()
 
 
 if __name__ == "__main__":
