@@ -213,6 +213,31 @@ class FarmerBot:
         return client_img.crop((x_min, y_min, x_max, y_max))
 
     # =========================================================================
+    # HELPER: Tutup Objek / Popup yang Menutupi Storage (Notice, Quiz, Raffle)
+    # =========================================================================
+    def dismiss_storage_popup(self) -> bool:
+        """
+        Menutup objek / popup modal (Notice, Lucky Number, Raffle, Quiz) yang menutupi Storage.
+        Prosedur aman sesuai feedback user:
+        1. Klik pada tulisan kiri atas objek (agar tidak memilih tombol opsi berbayar Rupiah di tengah).
+        2. Kirim tombol Esc tepat 1x (agar popup tertutup tanpa menutup jendela Storage).
+        """
+        self.wm.activate_window()
+        time.sleep(0.15)
+
+        popup_cfg = self.config.get("storage_popup", {})
+        click_x = int(popup_cfg.get("click_x", 85))
+        click_y = int(popup_cfg.get("click_y", 55))
+
+        self.log(f"🛡️ [Popup Guard] Menutup popup storage: Klik teks kiri atas ({click_x}, {click_y}) -> Tekan Esc 1x...")
+        self.input.click(click_x, click_y)
+        time.sleep(0.15)
+        self.input.press_key("esc")
+        time.sleep(0.25)
+        self.log("🛡️ [Popup Guard] Selesai menutup popup.")
+        return True
+
+    # =========================================================================
     # TASK 1: Inventory ke Storage (Simpan ke Gudang dengan Filter Blacklist)
     # =========================================================================
     def run_inventory_to_storage(self) -> None:
@@ -222,6 +247,9 @@ class FarmerBot:
 
         self.wm.activate_window()
         time.sleep(0.3)
+
+        if self.config.get("storage_popup", "auto_dismiss", False):
+            self.dismiss_storage_popup()
 
         inv = self.config.get("inventory")
         cols = inv.get("cols", 6)
@@ -304,6 +332,9 @@ class FarmerBot:
 
         self.wm.activate_window()
         time.sleep(0.3)
+
+        if self.config.get("storage_popup", "auto_dismiss", False):
+            self.dismiss_storage_popup()
 
         store = self.config.get("storage")
         cols = store.get("cols", 10)

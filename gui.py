@@ -18,7 +18,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
-from config import Config
+from config import Config, APP_VERSION
 from window_manager import WindowManager
 from screen import ScreenCapture
 from input_controller import InputController
@@ -43,7 +43,7 @@ class FarmerGUI(tk.Tk):
         self.worker_thread = None
 
         # Start in compact login mode
-        self.title("🔐 Keamanan Akses - Tantra Farmer")
+        self.title(f"🔐 Keamanan Akses - Tantra Farmer {APP_VERSION}")
         self.geometry("440x290")
         self.resizable(False, False)
         self._center_window(440, 290)
@@ -177,7 +177,7 @@ class FarmerGUI(tk.Tk):
         self.frame_login.destroy()
 
         # Switch to main dashboard
-        self.title("Farmer Macro Tool")
+        self.title(f"Tantra Farmer Macro {APP_VERSION}")
         self.geometry("920x700")
         self.minsize(860, 640)
         self.resizable(True, True)
@@ -249,6 +249,19 @@ class FarmerGUI(tk.Tk):
             bg="#202225"
         )
         title_lbl.pack(side=tk.LEFT)
+
+        version_badge = tk.Label(
+            header_frame,
+            text=f" {APP_VERSION} ",
+            font=("Segoe UI", 9, "bold"),
+            fg="#ffffff",
+            bg="#238636",
+            padx=6,
+            pady=2,
+            relief="solid",
+            bd=1
+        )
+        version_badge.pack(side=tk.LEFT, padx=(10, 0))
 
         self.status_badge = tk.Label(
             header_frame,
@@ -380,6 +393,56 @@ class FarmerGUI(tk.Tk):
             command=self.check_game_window
         )
         self.btn_find_window.pack(side=tk.RIGHT)
+
+        # Quick Shortcuts Panel
+        quick_frame = tk.LabelFrame(container, text=" ⚡ Tombol Aksi Cepat / Shortcut Keyboard Langsung ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+        quick_frame.pack(fill=tk.X, pady=(10, 0))
+
+        q_btn_bar = tk.Frame(quick_frame, bg="#222428")
+        q_btn_bar.pack(fill=tk.X)
+
+        s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
+        i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
+        pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
+
+        tk.Button(
+            q_btn_bar,
+            text=f"📦 Tarik Storage -> Tas [{s2i_hk}]",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            activebackground="#388bfd",
+            relief="flat",
+            padx=10,
+            pady=6,
+            command=lambda: self.run_specific_task("storage_to_inv")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            q_btn_bar,
+            text=f"💰 Jual Tas -> NPC [{i2n_hk}]",
+            font=("Segoe UI", 9, "bold"),
+            bg="#8957e5",
+            fg="#ffffff",
+            activebackground="#a371f7",
+            relief="flat",
+            padx=10,
+            pady=6,
+            command=lambda: self.run_specific_task("inv_to_merchant")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            q_btn_bar,
+            text=f"🛡️ Tutup Popup Storage [{pop_hk}]",
+            font=("Segoe UI", 9, "bold"),
+            bg="#d29922",
+            fg="#0d1117",
+            activebackground="#e3b341",
+            relief="flat",
+            padx=10,
+            pady=6,
+            command=lambda: self.run_specific_task("dismiss_popup")
+        ).pack(side=tk.LEFT)
 
         log_frame = tk.LabelFrame(container, text=" Aktivitas / Log Eksekusi ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=8, pady=8)
         log_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -681,6 +744,21 @@ class FarmerGUI(tk.Tk):
         )
         cb1.pack(anchor=tk.W)
 
+        self.var_auto_dismiss_popup = tk.BooleanVar(value=self.config.get("storage_popup", "auto_dismiss", False))
+        cb2 = tk.Checkbutton(
+            cfg_bar,
+            text="🛡️ Tutup Otomatis Popup (Notice/Quiz/Raffle) yang menutupi Storage sebelum proses",
+            variable=self.var_auto_dismiss_popup,
+            bg="#161b22",
+            fg="#d29922",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9),
+            command=self._on_toggle_auto_dismiss_popup
+        )
+        cb2.pack(anchor=tk.W, pady=(4, 0))
+
         # Blacklist Gudang Box (Full Width)
         box_frame = tk.LabelFrame(
             container,
@@ -736,6 +814,11 @@ class FarmerGUI(tk.Tk):
         self.storage_blacklist_frame.pack(fill=tk.BOTH, expand=True)
 
         self.refresh_storage_blacklist_view()
+
+    def _on_toggle_auto_dismiss_popup(self):
+        val = self.var_auto_dismiss_popup.get()
+        self.config.set("storage_popup", "auto_dismiss", val)
+        self.config.save()
 
     def _on_toggle_storage_blacklist(self):
         val = self.var_storage_blacklist_enabled.get()
@@ -1385,6 +1468,8 @@ class FarmerGUI(tk.Tk):
             ("Threshold Match Blacklist Jual (0.5 - 1.0):", "rules", "sell_whitelist_match_threshold"),
             ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
             ("Interval Cek Auto Hunt (detik):", "delays", "hunt_loop_interval_sec"),
+            ("Klik Popup Storage X (Teks Kiri Atas):", "storage_popup", "click_x"),
+            ("Klik Popup Storage Y (Teks Kiri Atas):", "storage_popup", "click_y"),
         ]
 
         for i, (label_text, sec, key) in enumerate(fields):
@@ -1436,6 +1521,37 @@ class FarmerGUI(tk.Tk):
             command=self._change_password
         ).pack(anchor=tk.W, pady=(8, 0))
 
+        # App Info & Version Card
+        info_box = tk.LabelFrame(container, text=f" ℹ️ Informasi Aplikasi ({APP_VERSION}) ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
+        info_box.pack(fill=tk.X, pady=(15, 0))
+
+        s2i_k = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
+        i2n_k = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
+        pop_k = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
+
+        info_text = (
+            f"TantraFarmer Macro Versi: {APP_VERSION}\n"
+            f"Daftar Global Shortcut Aktif:\n"
+            f"  • [F11]        : Jalankan Macro (Sesuai mode yang dipilih di Dashboard)\n"
+            f"  • [F12 / ESC]  : Hentikan / Abort Macro\n"
+            f"  • [{s2i_k}]         : Langsung Tarik Item dari Storage ke Tas (Storage -> Inventory)\n"
+            f"  • [{i2n_k}]        : Langsung Jual Item dari Tas ke NPC Merchant (Inventory -> NPC)\n"
+            f"  • [{pop_k}]         : Tutup Popup Modal Storage (Notice, Quiz, Raffle, Lucky Number)"
+        )
+        tk.Label(info_box, text=info_text, bg="#222428", fg="#c9d1d9", font=("Segoe UI", 9), justify=tk.LEFT).pack(anchor=tk.W)
+
+        tk.Button(
+            info_box,
+            text=f"🛡️ Tes Tutup Popup Storage Sekarang [{pop_k}]",
+            font=("Segoe UI", 9, "bold"),
+            bg="#d29922",
+            fg="#0d1117",
+            relief="flat",
+            padx=12,
+            pady=4,
+            command=lambda: self.run_specific_task("dismiss_popup")
+        ).pack(anchor=tk.W, pady=(8, 0))
+
     def save_settings(self):
         try:
             for (sec, key), e in self.entries.items():
@@ -1470,7 +1586,7 @@ class FarmerGUI(tk.Tk):
     def _build_footer(self):
         footer = tk.Frame(self, bg="#161b22", height=24, padx=12, pady=4)
         footer.pack(fill=tk.X, side=tk.BOTTOM)
-        tk.Label(footer, text="Antigravity Tantra Farmer • Resolution Independent • DirectInput Engine", font=("Segoe UI", 8), bg="#161b22", fg="#8b949e").pack(side=tk.LEFT)
+        tk.Label(footer, text=f"Antigravity Tantra Farmer {APP_VERSION} • Resolution Independent • DirectInput Engine", font=("Segoe UI", 8), bg="#161b22", fg="#8b949e").pack(side=tk.LEFT)
 
     def _setup_hotkeys(self):
         if HAS_KEYBOARD and sys.platform == "win32":
@@ -1478,10 +1594,21 @@ class FarmerGUI(tk.Tk):
                 start_hk = self.config.get("hotkeys", "start", "f11")
                 stop_hk = self.config.get("hotkeys", "stop", "f12")
                 abort_hk = self.config.get("hotkeys", "emergency_abort", "esc")
+                s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9")
+                i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10")
+                pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8")
+
                 keyboard.add_hotkey(start_hk, lambda: self.after(0, self.start_macro))
                 keyboard.add_hotkey(stop_hk, lambda: self.after(0, self.stop_macro))
                 keyboard.add_hotkey(abort_hk, lambda: self.after(0, self.stop_macro))
-                self.append_log(f"Global Hotkeys registered: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), {abort_hk.upper()} (Abort).")
+                keyboard.add_hotkey(s2i_hk, lambda: self.after(0, lambda: self.run_specific_task("storage_to_inv")))
+                keyboard.add_hotkey(i2n_hk, lambda: self.after(0, lambda: self.run_specific_task("inv_to_merchant")))
+                keyboard.add_hotkey(pop_hk, lambda: self.after(0, lambda: self.run_specific_task("dismiss_popup")))
+
+                self.append_log(
+                    f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), "
+                    f"{s2i_hk.upper()} (Storage->Tas), {i2n_hk.upper()} (Tas->NPC), {pop_hk.upper()} (Tutup Popup)."
+                )
             except Exception as e:
                 self.append_log(f"Warning: Failed to hook global keyboard hotkeys: {e}")
 
@@ -1633,6 +1760,36 @@ class FarmerGUI(tk.Tk):
                     self.bot.run_storage_to_inventory()
                 elif mode == "inv_to_merchant":
                     self.bot.run_inventory_to_npc()
+            finally:
+                self.after(0, self._on_macro_finished)
+
+        self.worker_thread = threading.Thread(target=runner, daemon=True)
+        self.worker_thread.start()
+
+    def run_specific_task(self, task_name: str):
+        if self.bot.is_running:
+            self.append_log("Peringatan: Macro sedang berjalan. Tekan F12 terlebih dahulu untuk menghentikan.")
+            return
+
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        self.bot.input.reset_abort()
+        self.status_badge.config(text=f"RUNNING ({task_name})", fg="#ffffff", bg="#238636")
+        self.btn_start.config(state=tk.DISABLED)
+        self.btn_stop.config(state=tk.NORMAL)
+
+        def runner():
+            try:
+                self.wm.activate_window()
+                time.sleep(0.3)
+
+                if task_name == "storage_to_inv":
+                    self.bot.run_storage_to_inventory()
+                elif task_name == "inv_to_merchant":
+                    self.bot.run_inventory_to_npc()
+                elif task_name == "inv_to_storage":
+                    self.bot.run_inventory_to_storage()
+                elif task_name == "dismiss_popup":
+                    self.bot.dismiss_storage_popup()
             finally:
                 self.after(0, self._on_macro_finished)
 

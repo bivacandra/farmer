@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+APP_VERSION = "v1.0.5"
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "window": {
         "title_patterns": [
@@ -59,16 +61,25 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "storage_deposit": {
         "blacklist_enabled": True
     },
+    "storage_popup": {
+        "click_x": 85,
+        "click_y": 55,
+        "auto_dismiss": False
+    },
     "rules": {
         "empty_slot_threshold": 18.0,
         "sell_whitelist_match_threshold": 0.78,
+        "storage_blacklist_match_threshold": 0.50,
         "auto_confirm_sell": True,
         "use_ocr_name_fallback": True
     },
     "hotkeys": {
         "start": "f11",
         "stop": "f12",
-        "emergency_abort": "esc"
+        "emergency_abort": "esc",
+        "storage_to_inv": "f9",
+        "inv_to_merchant": "f10",
+        "dismiss_popup": "f8"
     },
     "auto_skill": {
         "enabled": False,
