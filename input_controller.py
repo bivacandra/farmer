@@ -161,6 +161,22 @@ class InputController:
     def press_key(self, key_name: str) -> None:
         """Sends key press (e.g. 'enter', 'esc', 'f1', '1')."""
         key_lower = key_name.lower().strip()
+        # Direct window message for ESC to prevent triggering global hotkeys or focus loss
+        if key_lower in ["esc", "escape"] and sys.platform == "win32" and self.wm and self.wm.hwnd:
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                WM_KEYDOWN = 0x0100
+                WM_KEYUP = 0x0101
+                VK_ESCAPE = 0x1B
+                user32.PostMessageW(self.wm.hwnd, WM_KEYDOWN, VK_ESCAPE, 0)
+                time.sleep(0.04)
+                user32.PostMessageW(self.wm.hwnd, WM_KEYUP, VK_ESCAPE, 0)
+                time.sleep(0.04)
+                return
+            except Exception:
+                pass
+
         try:
             if HAS_DIRECT_INPUT:
                 pydirectinput.press(key_lower)

@@ -1877,7 +1877,7 @@ class FarmerGUI(tk.Tk):
             f"TantraFarmer Macro Versi: {APP_VERSION}\n"
             f"Daftar Global Shortcut Aktif:\n"
             f"  • [F11]        : Jalankan Macro (Sesuai mode yang dipilih di Dashboard)\n"
-            f"  • [F12 / ESC]  : Hentikan / Abort Macro\n"
+            f"  • [F12]        : Hentikan / Stop Macro\n"
             f"  • [{s2i_k}]         : Langsung Tarik Item dari Storage ke Tas (Storage -> Inventory)\n"
             f"  • [{i2n_k}]        : Langsung Jual Item dari Tas ke NPC Merchant (Inventory -> NPC)\n"
             f"  • [{pop_k}]         : Tutup Popup Modal Storage (Notice, Quiz, Raffle, Lucky Number)"
@@ -1964,14 +1964,15 @@ class FarmerGUI(tk.Tk):
             try:
                 start_hk = self.config.get("hotkeys", "start", "f11")
                 stop_hk = self.config.get("hotkeys", "stop", "f12")
-                abort_hk = self.config.get("hotkeys", "emergency_abort", "esc")
+                abort_hk = self.config.get("hotkeys", "emergency_abort", None)
                 s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9")
                 i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10")
                 pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8")
 
                 keyboard.add_hotkey(start_hk, lambda: self.after(0, self.start_macro))
                 keyboard.add_hotkey(stop_hk, lambda: self.after(0, self.stop_macro))
-                keyboard.add_hotkey(abort_hk, lambda: self.after(0, self.stop_macro))
+                if abort_hk and abort_hk.lower() not in ["esc", "escape"]:
+                    keyboard.add_hotkey(abort_hk, lambda: self.after(0, self.stop_macro))
                 keyboard.add_hotkey(s2i_hk, lambda: self.after(0, lambda: self.run_specific_task("storage_to_inv")))
                 keyboard.add_hotkey(i2n_hk, lambda: self.after(0, lambda: self.run_specific_task("inv_to_merchant")))
                 keyboard.add_hotkey(pop_hk, lambda: self.after(0, lambda: self.run_specific_task("dismiss_popup")))

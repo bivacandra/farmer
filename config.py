@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.0.7"
+APP_VERSION = "v1.0.8"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "window": {
@@ -76,7 +76,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "hotkeys": {
         "start": "f11",
         "stop": "f12",
-        "emergency_abort": "esc",
         "storage_to_inv": "f9",
         "inv_to_merchant": "f10",
         "dismiss_popup": "f8"

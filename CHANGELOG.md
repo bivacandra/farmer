@@ -5,6 +5,16 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.0.8] - 2026-11-19
+
+### 🛠️ Fixed
+- **Pelepasan Global Hook ESC (Fix Makro Berhenti Sendiri saat Tutup Popup)**:
+  - Memperbaiki bug di mana makro tiba-tiba berhenti (`Macro stopped by user`) saat bot mengirim tombol `Esc` untuk menutup popup Notice/Quiz.
+  - Hook global `Esc` dilepaskan sepenuhnya sehingga `Esc` tidak lagi memicu abort makro. Tombol penghenti resmi makro tetap murni menggunakan **`[F12]`**.
+  - Pengiriman tombol `Esc` oleh bot kini dikirim langsung melalui Win32 message (`PostMessageW WM_KEYDOWN VK_ESCAPE`) ke jendela game Tantra tanpa memicu event keyboard global.
+
+---
+
 ## [v1.0.7] - 2026-11-19
 
 ### 🟢 Added

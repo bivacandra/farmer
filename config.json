@@ -66,7 +66,6 @@
   "hotkeys": {
     "start": "f11",
     "stop": "f12",
-    "emergency_abort": "esc",
     "storage_to_inv": "f9",
     "inv_to_merchant": "f10",
     "dismiss_popup": "f8"
