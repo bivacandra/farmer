@@ -14,6 +14,8 @@ added_files = [
     ('assets', 'assets'),
     ('config.json', '.'),
     ('README.md', '.'),
+    ('CHANGELOG.md', '.'),
+    ('ROADMAP.md', '.'),
 ]
 
 hidden_imports = [

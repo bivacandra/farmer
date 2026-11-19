@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 import time
+import webbrowser
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -1570,6 +1571,18 @@ class FarmerGUI(tk.Tk):
             padx=12,
             pady=4,
             command=lambda: self._check_update_in_background(silent=False)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_info_row,
+            text="💬 Laporkan Bug / Masukan",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=12,
+            pady=4,
+            command=lambda: webbrowser.open("https://github.com/bivacandra/farmer/issues")
         ).pack(side=tk.LEFT)
 
     def save_settings(self):
