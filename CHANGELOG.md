@@ -5,6 +5,34 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.0.7] - 2026-11-19
+
+### 🟢 Added
+- **Filter Pop-Up Penutup Storage Mandiri (Issue #6)**:
+  - Panel manajemen *"🛡️ Filter Pop-up Penutup Storage"* di Tab 4 untuk mendeteksi dan menutup popup modal (Notice, Lucky Number, Raffle, Quiz) secara cerdas.
+  - Tombol *"✂️ Potong Judul Popup dari Layar..."* untuk memotong judul popup langsung dari layar game menggunakan visual selector interaktif.
+  - Prosedur penutupan otomatis: makro memindai header popup yang terdaftar, mengklik tepat pada judul (bukan di tengah sehingga aman dari tombol berbayar Rupiah), lalu mengirimkan `Esc` 1x untuk menutup modal tanpa menutup jendela Storage.
+- **Safety Stop saat Karakter Mati / Pop-Up Respawn (Issue #7)**:
+  - Deteksi otomatis pop-up konfirmasi kematian karakter: `"If you click 'OK', you will respawn at the last saved location"`.
+  - Jika terdeteksi saat Auto Hunt atau Auto Skill, makro seketika berhenti total (`Safety Stop`), mengubah status badge menjadi merah mencolok (`🚨 KARAKTER MATI`), memunculkan log peringatan, serta membunyikan alarm suara agar karakter tidak bergerak tanpa pengawasan.
+- **Non-Overwriting Multi-Template Blacklist (Issue #1)**:
+  - Saat menambahkan template blacklist (baik Gudang maupun Jual NPC) dengan nama yang sudah ada, sistem tidak lagi menimpa file lama. File otomatis diberi penomoran unik berurutan (`nama_2.png`, `nama_3.png`, dst.) sehingga varian template item bertambah dan tidak ada data sebelumnya yang hilang.
+  - Jumlah total item terdaftar kini ditampilkan di judul frame Blacklist: *(X Item Terdaftar)* dan daftar item diurutkan secara alfabetis agar varian item yang sama berkumpul rapi.
+- **Tombol Zero-In Window Game ke (0, 0) (Issue #2)**:
+  - Tombol `📍 Zero-In (0, 0)` di Dashboard & Tab Kalibrasi Area untuk memposisikan window game Tantra tepat ke koordinat layar `(0, 0)` secara otomatis menggunakan Win32 `SetWindowPos`.
+- **Tombol Snap Makro ke Samping Game (Issue #3)**:
+  - Tombol `🧲 Snap Samping Game` di Dashboard & Tab Kalibrasi Area untuk menempelkan window makro persis di sisi kanan window game Tantra agar tidak saling menutupi.
+- **Scrollable Frame pada Tab Pengaturan & Kalibrasi (Issue #4)**:
+  - Tab Pengaturan & Delay dan Tab Kalibrasi Area kini menggunakan canvas scrollable dengan dukungan penuh *mouse wheel* dan scrollbar vertikal. Informasi aplikasi, konfigurasi delay, dan ganti password tidak lagi terpotong pada monitor resolusi kecil/laptop.
+- **Adaptive Window Size**:
+  - Ukuran window makro otomatis menyesuaikan dengan resolusi monitor pengguna.
+
+### ⚡ Changed
+- **Penyederhanaan Menu Blacklist (Issue #5)**:
+  - Tombol manual *"Tambah Ikon Gambar..."* dihilangkan dari Tab Blacklist Gudang dan Tab Blacklist Jual NPC; seluruh proses penambahan blacklist difokuskan langsung menggunakan tombol *"✂️ Potong dari Slot Tas..."*.
+
+---
+
 ## [v1.0.6] - 2026-11-17
 
 ### 🟢 Added

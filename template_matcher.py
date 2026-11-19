@@ -140,6 +140,73 @@ class TemplateMatcher:
 
         return False
 
+    def detect_death_popup(self, client_img: Image.Image, threshold: float = 0.70) -> Optional[Tuple[int, int, float]]:
+        """
+        Detects character death respawn dialog:
+        'If you click OK, you will respawn at the last saved location'.
+        Checks popup_respawn_death.png and death_text_needle.png in templates_dir.
+        Returns (center_x, center_y, confidence) or None.
+        """
+        w, h = client_img.size
+        # Search in central area of the client window
+        off_x = max(0, (w - 600) // 2)
+        off_y = max(0, (h - 450) // 2)
+        search_w = min(w - off_x, 600)
+        search_h = min(h - off_y, 450)
+        search_region = client_img.crop((off_x, off_y, off_x + search_w, off_y + search_h))
+
+        candidates = [
+            self.templates_dir / "popup_respawn_death.png",
+            self.templates_dir / "death_text_needle.png"
+        ]
+
+        for cand_path in candidates:
+            if cand_path.exists():
+                try:
+                    needle = Image.open(cand_path)
+                    res = self.match_template_in_image(search_region, needle, threshold=threshold)
+                    if res is not None:
+                        rx, ry, conf = res
+                        return (off_x + rx, off_y + ry, conf)
+                except Exception as e:
+                    print(f"[TemplateMatcher] Error matching death popup: {e}")
+
+        return None
+
+    def detect_storage_popup(self, client_img: Image.Image, threshold: float = 0.70) -> Optional[Tuple[str, int, int, float]]:
+        """
+        Detects modal popups (Notice, Quiz, Lucky Number, Raffle) blocking the storage window.
+        Scans against all popup templates in config.storage_popups_dir.
+        Returns (popup_name, center_x, center_y, confidence) or None.
+        """
+        popups_dir = getattr(self.config, "storage_popups_dir", self.config.assets_dir / "storage_popups")
+        popup_files = list(popups_dir.glob("*.png")) + list(popups_dir.glob("*.jpg"))
+        if not popup_files:
+            return None
+
+        w, h = client_img.size
+        # Search region: left half of screen where storage and notice popups appear
+        search_x2 = min(w, 650)
+        search_y2 = min(h, 600)
+        search_region = client_img.crop((0, 0, search_x2, search_y2))
+
+        best_match = None
+        best_conf = 0.0
+
+        for p_file in popup_files:
+            try:
+                needle = Image.open(p_file)
+                res = self.match_template_in_image(search_region, needle, threshold=threshold)
+                if res is not None:
+                    rx, ry, conf = res
+                    if conf > best_conf:
+                        best_conf = conf
+                        best_match = (p_file.stem, rx, ry, conf)
+            except Exception as e:
+                print(f"[TemplateMatcher] Error checking popup template {p_file}: {e}")
+
+        return best_match
+
     def match_item_in_whitelist(self, slot_crop: Image.Image, whitelist_dir: Optional[Path] = None, threshold: Optional[float] = None) -> Tuple[bool, Optional[str], float]:
         """
         Compares slot image against all icons in whitelist_dir (defaults to assets/merchant_blacklist/).

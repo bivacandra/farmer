@@ -178,6 +178,41 @@ class WindowManager:
         except Exception as e:
             print(f"[WindowManager] Error updating bounds: {e}")
 
+    def zero_in_window(self) -> bool:
+        """
+        Positions the game window at screen coordinate (0, 0).
+        Restores window if minimized and moves it to top-left corner.
+        """
+        if sys.platform != "win32":
+            print("[WindowManager] Non-Windows platform. Emulated zero_in_window to (0, 0)")
+            self.client_rect = (0, 0, 1024, 768)
+            self.window_rect = (0, 0, 1024, 768)
+            return True
+
+        if not self.hwnd:
+            self.find_window()
+
+        if not self.hwnd:
+            print("[WindowManager] Cannot zero-in: window not found.")
+            return False
+
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            # 9 = SW_RESTORE
+            user32.ShowWindow(self.hwnd, 9)
+            user32.SetForegroundWindow(self.hwnd)
+
+            SWP_NOSIZE = 0x0001
+            SWP_NOZORDER = 0x0004
+            SWP_SHOWWINDOW = 0x0040
+            res = user32.SetWindowPos(self.hwnd, 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW)
+            self.update_bounds()
+            return bool(res)
+        except Exception as e:
+            print(f"[WindowManager] Failed to zero-in window: {e}")
+            return False
+
     def to_screen_coords(self, rel_x: int, rel_y: int) -> Tuple[int, int]:
         """
         Converts coordinates relative to the client area into absolute screen coordinates.

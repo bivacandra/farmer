@@ -26,6 +26,7 @@ class FarmerBot:
 
         self.is_running = False
         self.log_callback: Optional[Callable[[str], None]] = None
+        self.on_death_callback: Optional[Callable[[], None]] = None
 
     def log(self, message: str) -> None:
         formatted = f"[FarmerBot] {message}"
@@ -215,27 +216,34 @@ class FarmerBot:
     # =========================================================================
     # HELPER: Tutup Objek / Popup yang Menutupi Storage (Notice, Quiz, Raffle)
     # =========================================================================
-    def dismiss_storage_popup(self) -> bool:
+    def dismiss_storage_popup(self, manual: bool = False) -> bool:
         """
         Menutup objek / popup modal (Notice, Lucky Number, Raffle, Quiz) yang menutupi Storage.
-        Prosedur aman sesuai feedback user:
-        1. Klik pada tulisan kiri atas objek (agar tidak memilih tombol opsi berbayar Rupiah di tengah).
-        2. Kirim tombol Esc tepat 1x (agar popup tertutup tanpa menutup jendela Storage).
+        Hanya bertindak jika terdeteksi popup dari template yang cocok (score >= threshold).
+        Jika TIDAK ada popup yang cocok atau TIDAK ada template popup terdaftar,
+        makro TIDAK AKAN mengklik atau menekan Esc agar jendela Storage tidak ikut tertutup!
         """
         self.wm.activate_window()
-        time.sleep(0.15)
+        time.sleep(0.12)
 
-        popup_cfg = self.config.get("storage_popup", {})
-        click_x = int(popup_cfg.get("click_x", 85))
-        click_y = int(popup_cfg.get("click_y", 55))
+        client_img = self.screen.capture_client()
+        th = float(self.config.get("storage_popup", "match_threshold", 0.70))
+        match = self.matcher.detect_storage_popup(client_img, threshold=th)
 
-        self.log(f"🛡️ [Popup Guard] Menutup popup storage: Klik teks kiri atas ({click_x}, {click_y}) -> Tekan Esc 1x...")
-        self.input.click(click_x, click_y)
-        time.sleep(0.15)
-        self.input.press_key("esc")
-        time.sleep(0.25)
-        self.log("🛡️ [Popup Guard] Selesai menutup popup.")
-        return True
+        if match:
+            p_name, cx, cy, conf = match
+            self.log(f"🛡️ [Popup Guard] Terdeteksi popup '{p_name}' di ({cx}, {cy}) [Score: {conf:.2f} >= Min:{th:.2f}].")
+            self.log(f"🛡️ [Popup Guard] Mengklik judul popup ({cx}, {cy}) lalu menekan Esc 1x untuk menutup modal...")
+            self.input.click(cx, cy)
+            time.sleep(0.15)
+            self.input.press_key("esc")
+            time.sleep(0.25)
+            self.log(f"🛡️ [Popup Guard] Popup '{p_name}' berhasil ditutup.")
+            return True
+        else:
+            if manual:
+                self.log(f"ℹ️ [Popup Guard] Tidak ada popup yang cocok terdeteksi di layar (Threshold: {th:.2f}). Esc tidak ditekan agar Storage tidak tertutup.")
+            return False
 
     # =========================================================================
     # TASK 1: Inventory ke Storage (Simpan ke Gudang dengan Filter Blacklist)
@@ -495,6 +503,18 @@ class FarmerBot:
 
                 # 1. Pindai tas secara pasif (screen capture tanpa gerak mouse)
                 client_img = self.screen.capture_client()
+
+                # 0. Safety Guard: Cek apakah karakter mati (muncul popup respawn)
+                death_match = self.matcher.detect_death_popup(client_img)
+                if death_match:
+                    cx, cy, conf = death_match
+                    self.log(f"🚨 [SAFETY STOP] KARAKTER MATI! Terdeteksi popup respawn di ({cx}, {cy}) [Match: {conf:.2f}].")
+                    self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
+                    self.is_running = False
+                    if hasattr(self, 'on_death_callback') and self.on_death_callback:
+                        self.on_death_callback()
+                    return
+
                 blacklist_icons = list(self.config.storage_blacklist_dir.glob("*.png")) + list(self.config.storage_blacklist_dir.glob("*.jpg"))
 
                 items_to_transfer = []
@@ -535,6 +555,9 @@ class FarmerBot:
 
                 # 2. Jika ada item yang perlu dipindahkan ke storage
                 if items_to_transfer:
+                    if self.config.get("storage_popup", "auto_dismiss", False):
+                        self.dismiss_storage_popup()
+
                     self.log(f"[Auto Hunt] Terdeteksi {len(items_to_transfer)} item untuk dipindahkan ke Gudang...")
                     self.wm.activate_window()
                     time.sleep(0.05)

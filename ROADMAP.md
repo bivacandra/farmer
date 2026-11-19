@@ -19,16 +19,21 @@ Bagi pengguna atau tester yang menemukan kendala (*bug*) atau memiliki usulan fi
 
 ## 🚀 Rencana Rilis Mendatang
 
-### 🎯 Versi Berikutnya (v1.0.7 - Planned)
-- [ ] **Tombol Cepat Buka Issue/Feedback di GUI**:
-  - Tombol langsung di Tab 7 (Pengaturan) yang membuka halaman GitHub Issues di browser default pengguna.
-- [ ] **Auto Potion / HP & MP Guard (Opsional)**:
-  - Pemindaian bar HP/MP karakter secara periodik.
-  - Otomatis menekan hotkey potion (misal `1` atau `2`) jika HP turun di bawah persentase tertentu.
-- [ ] **Notifikasi Audio / Bell Suara**:
-  - Membunyikan nada "beep" atau notifikasi Windows saat:
-    - Gudang Storage (120 slot) penuh.
-    - Karakter terputus (*disconnected*) dari server game.
+### 🎯 Versi Berikutnya (v1.0.7 - Planned / In Progress)
+- [x] **Tombol Zero-In Game Window (0, 0) (Issue #2)**:
+  - Tombol pada Dashboard dan Kalibrasi Area untuk memposisikan window game Tantra tepat ke sudut kiri atas (0, 0).
+- [x] **Tombol Snap Makro ke Samping Window Game (Issue #3)**:
+  - Tombol untuk menempelkan window makro persis di samping kanan window game sehingga game dan makro berdampingan rapi tanpa tumpang tindih.
+- [x] **Scrollable Frame & Tampilan Pengaturan Responsif (Issue #4)**:
+  - Tab Pengaturan & Delay serta Kalibrasi Area kini dilengkapi vertical scrollbar dan dukungan mouse wheel, mencegah konten terpotong pada layar resolusi standar/laptop.
+- [x] **Penyederhanaan UI Blacklist (Issue #5)**:
+  - Menghilangkan tombol import file gambar manual pada Blacklist Gudang dan Blacklist NPC; acuan murni menggunakan tombol potong langsung dari slot tas ("Potong dari Slot Tas").
+- [x] **Multi-Template / Non-Overwriting Blacklist (Issue #1)**:
+  - Jangan menimpa file blacklist yang sudah ada saat menambahkan template dengan nama yang sama. Sistem otomatis menerapkan auto-increment suffix (`_2`, `_3`, dst.) sehingga template varian bertambah tanpa menghilangkan data sebelumnya.
+- [x] **Filter Nama Pop-up Storage (Issue #6)**:
+  - Daftar popup modal penghalang storage (Notice, Lucky Number, Raffle, Quiz) dengan auto-close aman (klik judul popup -> tekan Esc 1x) dan alat pemotong judul popup visual dari layar game.
+- [x] **Safety Stop saat Karakter Mati (Respawn Pop-up) (Issue #7)**:
+  - Menghentikan makro secara otomatis jika muncul popup "If you click 'OK', you will respawn at the last saved location" dengan visual alert merah dan bunyi peringatan.
 
 ---
 

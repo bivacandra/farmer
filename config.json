@@ -50,6 +50,12 @@
   "storage_deposit": {
     "blacklist_enabled": true
   },
+  "storage_popup": {
+    "click_x": 85,
+    "click_y": 55,
+    "auto_dismiss": true,
+    "match_threshold": 0.70
+  },
   "rules": {
     "empty_slot_threshold": 18.0,
     "sell_whitelist_match_threshold": 0.5,
@@ -64,11 +70,6 @@
     "storage_to_inv": "f9",
     "inv_to_merchant": "f10",
     "dismiss_popup": "f8"
-  },
-  "storage_popup": {
-    "click_x": 85,
-    "click_y": 55,
-    "auto_dismiss": false
   },
   "auto_skill": {
     "enabled": false,

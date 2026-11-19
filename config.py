@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.0.6"
+APP_VERSION = "v1.0.7"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "window": {
@@ -201,6 +201,12 @@ class Config:
     @property
     def blacklist_dir(self) -> Path:
         p = self.assets_dir / "blacklist"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def storage_popups_dir(self) -> Path:
+        p = self.assets_dir / "storage_popups"
         p.mkdir(parents=True, exist_ok=True)
         return p
 

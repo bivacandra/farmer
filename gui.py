@@ -180,10 +180,14 @@ class FarmerGUI(tk.Tk):
 
         # Switch to main dashboard
         self.title(f"Tantra Farmer Macro {APP_VERSION}")
-        self.geometry("920x700")
-        self.minsize(860, 640)
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        default_w = min(960, max(880, sw - 40))
+        default_h = min(780, max(620, sh - 80))
+        self.geometry(f"{default_w}x{default_h}")
+        self.minsize(860, 580)
         self.resizable(True, True)
-        self._center_window(920, 700)
+        self._center_window(default_w, default_h)
 
         # Apply dark theme styling
         self._setup_styles()
@@ -196,6 +200,7 @@ class FarmerGUI(tk.Tk):
         self.ocr = OCREngine(self.config)
         self.bot = FarmerBot(self.wm, self.screen, self.input, self.matcher, self.ocr, self.config)
         self.bot.log_callback = self.append_log
+        self.bot.on_death_callback = self._on_character_death
 
         # Build UI layout
         self._build_header()
@@ -241,6 +246,52 @@ class FarmerGUI(tk.Tk):
         style.configure("Card.TFrame", background=bg_card, relief="flat")
         style.configure("TLabel", background=bg_card, foreground=fg_white, font=("Segoe UI", 10))
         style.configure("Title.TLabel", background=bg_card, foreground="#58a6ff", font=("Segoe UI", 12, "bold"))
+
+    def _create_scrollable_container(self, parent, bg="#222428"):
+        """
+        Creates a vertical scrollable container inside parent with mousewheel support.
+        Returns (outer_container, scrollable_content_frame).
+        """
+        outer = tk.Frame(parent, bg=bg)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(outer, bg=bg, highlightthickness=0, bd=0)
+        scrollbar = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg=bg)
+
+        inner_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(inner_window, width=event.width)
+
+        inner.bind("<Configure>", _on_inner_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        def _on_mousewheel(event):
+            if event.delta:
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+            canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+
+        def _unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+
+        canvas.bind("<Enter>", _bind_mousewheel)
+        canvas.bind("<Leave>", _unbind_mousewheel)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        return outer, inner
 
     def _build_header(self):
         header_frame = tk.Frame(self, bg="#202225", height=60, padx=16, pady=10)
@@ -389,16 +440,42 @@ class FarmerGUI(tk.Tk):
 
         self.btn_find_window = tk.Button(
             btn_frame,
-            text="🔍 Cek Jendela Game",
+            text="🔍 Cek Window",
             font=("Segoe UI", 9),
             bg="#30363d",
             fg="#c9d1d9",
             relief="flat",
-            padx=12,
+            padx=10,
             pady=8,
             command=self.check_game_window
         )
         self.btn_find_window.pack(side=tk.RIGHT)
+
+        self.btn_snap = tk.Button(
+            btn_frame,
+            text="🧲 Snap Samping Game",
+            font=("Segoe UI", 9, "bold"),
+            bg="#21262d",
+            fg="#79c0ff",
+            relief="flat",
+            padx=10,
+            pady=8,
+            command=self.snap_macro_beside_game
+        )
+        self.btn_snap.pack(side=tk.RIGHT, padx=(0, 6))
+
+        self.btn_zeroin = tk.Button(
+            btn_frame,
+            text="📍 Zero-In (0, 0)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#21262d",
+            fg="#58a6ff",
+            relief="flat",
+            padx=10,
+            pady=8,
+            command=self.zeroin_game_window
+        )
+        self.btn_zeroin.pack(side=tk.RIGHT, padx=(0, 6))
 
         # Quick Shortcuts Panel
         quick_frame = tk.LabelFrame(container, text=" ⚡ Tombol Aksi Cepat / Shortcut Keyboard Langsung ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
@@ -464,7 +541,8 @@ class FarmerGUI(tk.Tk):
     # TAB 2: Area Calibration (Select Area)
     # =========================================================================
     def _build_area_tab(self):
-        container = tk.Frame(self.tab_area, bg="#222428", padx=16, pady=14)
+        _, scroll_inner = self._create_scrollable_container(self.tab_area)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
         desc = tk.Label(
@@ -476,7 +554,60 @@ class FarmerGUI(tk.Tk):
             fg="#8b949e",
             justify=tk.LEFT
         )
-        desc.pack(anchor=tk.W, pady=(0, 14))
+        desc.pack(anchor=tk.W, pady=(0, 10))
+
+        # Quick Window Positioning Toolbar
+        win_bar = tk.LabelFrame(container, text=" 🖥️ Posisi Window Game & Makro ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
+        win_bar.pack(fill=tk.X, pady=(0, 12))
+
+        tk.Label(
+            win_bar,
+            text="Posisikan game dan makro agar berdampingan rapi tanpa saling tumpang tindih:",
+            font=("Segoe UI", 9),
+            bg="#222428",
+            fg="#8b949e"
+        ).pack(anchor=tk.W, pady=(0, 6))
+
+        wb_btns = tk.Frame(win_bar, bg="#222428")
+        wb_btns.pack(fill=tk.X)
+
+        tk.Button(
+            wb_btns,
+            text="📍 Zero-In Game (Posisikan ke 0, 0)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            activebackground="#388bfd",
+            relief="flat",
+            padx=12,
+            pady=5,
+            command=self.zeroin_game_window
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            wb_btns,
+            text="🧲 Snap Makro ke Samping Game",
+            font=("Segoe UI", 9, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            activebackground="#2ea043",
+            relief="flat",
+            padx=12,
+            pady=5,
+            command=self.snap_macro_beside_game
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            wb_btns,
+            text="🔍 Cek Jendela Game",
+            font=("Segoe UI", 9),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=5,
+            command=self.check_game_window
+        ).pack(side=tk.LEFT)
 
         # 1. Inventory Area Box
         inv_box = tk.LabelFrame(container, text=" 🎒 Area Inventory (Tas 24 Slot - 6 Kolom x 4 Baris) ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
@@ -714,7 +845,8 @@ class FarmerGUI(tk.Tk):
     # TAB 4: Blacklist Gudang (Item Ditinggalkan di Tas)
     # =========================================================================
     def _build_storage_whitelist_tab(self):
-        container = tk.Frame(self.tab_storage_whitelist, bg="#222428", padx=16, pady=14)
+        _, scroll_inner = self._create_scrollable_container(self.tab_storage_whitelist)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
         desc = tk.Label(
@@ -750,23 +882,68 @@ class FarmerGUI(tk.Tk):
         )
         cb1.pack(anchor=tk.W)
 
-        self.var_auto_dismiss_popup = tk.BooleanVar(value=self.config.get("storage_popup", "auto_dismiss", False))
-        cb2 = tk.Checkbutton(
-            cfg_bar,
-            text="🛡️ Tutup Otomatis Popup (Notice/Quiz/Raffle) yang menutupi Storage sebelum proses",
-            variable=self.var_auto_dismiss_popup,
-            bg="#161b22",
+        # Filter Pop-up Penutup Storage Box (Issue #6)
+        self.box_popup_frame = tk.LabelFrame(
+            container,
+            text=" 🛡️ Filter Pop-up Penutup Storage (Notice / Lucky Number / Raffle / Quiz) ",
+            bg="#222428",
             fg="#d29922",
+            font=("Segoe UI", 10, "bold"),
+            padx=10,
+            pady=8
+        )
+        self.box_popup_frame.pack(fill=tk.X, pady=(0, 12))
+
+        self.var_auto_dismiss_popup = tk.BooleanVar(value=self.config.get("storage_popup", "auto_dismiss", True))
+        cb2 = tk.Checkbutton(
+            self.box_popup_frame,
+            text="🛡️ Tutup Otomatis Popup yang terdeteksi sebelum proses Storage (Klik judul popup -> Esc 1x)",
+            variable=self.var_auto_dismiss_popup,
+            bg="#222428",
+            fg="#e1e2e6",
             selectcolor="#0d1117",
-            activebackground="#161b22",
+            activebackground="#222428",
             activeforeground="#58a6ff",
             font=("Segoe UI", 9),
             command=self._on_toggle_auto_dismiss_popup
         )
-        cb2.pack(anchor=tk.W, pady=(4, 0))
+        cb2.pack(anchor=tk.W, pady=(0, 6))
+
+        pop_btn_bar = tk.Frame(self.box_popup_frame, bg="#222428")
+        pop_btn_bar.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Button(
+            pop_btn_bar,
+            text="✂️ Potong Judul Popup dari Layar...",
+            font=("Segoe UI", 9, "bold"),
+            bg="#d29922",
+            fg="#0d1117",
+            activebackground="#e3b341",
+            relief="flat",
+            padx=12,
+            pady=4,
+            command=self.crop_popup_header_dialog
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            pop_btn_bar,
+            text="🔄 Refresh Filter",
+            font=("Segoe UI", 8),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self.refresh_storage_popup_view
+        ).pack(side=tk.LEFT)
+
+        self.storage_popup_frame = tk.Frame(self.box_popup_frame, bg="#161b22", relief="sunken", bd=1)
+        self.storage_popup_frame.pack(fill=tk.X)
+
+        self.refresh_storage_popup_view()
 
         # Blacklist Gudang Box (Full Width)
-        box_frame = tk.LabelFrame(
+        self.box_storage_frame = tk.LabelFrame(
             container,
             text=" 🚫 Daftar Item Blacklist Gudang (Ditinggalkan di Tas) ",
             bg="#222428",
@@ -775,32 +952,20 @@ class FarmerGUI(tk.Tk):
             padx=10,
             pady=10
         )
-        box_frame.pack(fill=tk.BOTH, expand=True)
+        self.box_storage_frame.pack(fill=tk.BOTH, expand=True)
 
-        btn_bar = tk.Frame(box_frame, bg="#222428")
+        btn_bar = tk.Frame(self.box_storage_frame, bg="#222428")
         btn_bar.pack(fill=tk.X, pady=(0, 8))
 
         tk.Button(
             btn_bar,
-            text="➕ Tambah Ikon Gambar...",
-            font=("Segoe UI", 8, "bold"),
-            bg="#da3633",
-            fg="#ffffff",
-            relief="flat",
-            padx=10,
-            pady=4,
-            command=lambda: self.add_whitelist_icon(target="storage_blacklist")
-        ).pack(side=tk.LEFT, padx=(0, 8))
-
-        tk.Button(
-            btn_bar,
             text="✂️ Potong dari Slot Tas...",
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 9, "bold"),
             bg="#1f6feb",
             fg="#ffffff",
             relief="flat",
-            padx=10,
-            pady=4,
+            padx=12,
+            pady=5,
             command=lambda: self.crop_icon_dialog(target="storage_blacklist")
         ).pack(side=tk.LEFT, padx=(0, 8))
 
@@ -816,10 +981,144 @@ class FarmerGUI(tk.Tk):
             command=self.refresh_storage_blacklist_view
         ).pack(side=tk.LEFT)
 
-        self.storage_blacklist_frame = tk.Frame(box_frame, bg="#161b22", relief="sunken", bd=1)
+        self.storage_blacklist_frame = tk.Frame(self.box_storage_frame, bg="#161b22", relief="sunken", bd=1)
         self.storage_blacklist_frame.pack(fill=tk.BOTH, expand=True)
 
         self.refresh_storage_blacklist_view()
+
+    def crop_popup_header_dialog(self):
+        """Allows user to visually select and crop a popup header title from game screen."""
+        if not self.wm.hwnd:
+            self.wm.find_window()
+        if not self.wm.hwnd and sys.platform == "win32":
+            messagebox.showerror("Game Tidak Ditemukan", "Jendela game Tantra belum terdeteksi!\nBuka game atau pilih jendela di tombol 'Cek Window'.")
+            return
+
+        self.wm.activate_window()
+        time.sleep(0.35)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            if x2 <= x1 or y2 <= y1:
+                return
+
+            crop = client_img.crop((x1, y1, x2, y2))
+
+            dlg = tk.Toplevel(self)
+            dlg.title("Nama / Jenis Popup")
+            dlg.geometry("380x160")
+            dlg.configure(bg="#222428")
+            dlg.resizable(False, False)
+
+            tk.Label(
+                dlg,
+                text="Beri nama untuk popup ini (misal: Notice, Quiz, Raffle):",
+                bg="#222428",
+                fg="#e1e2e6",
+                font=("Segoe UI", 9)
+            ).pack(padx=14, pady=(16, 6), anchor=tk.W)
+
+            e_name = tk.Entry(dlg, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=26, font=("Segoe UI", 10))
+            e_name.insert(0, "Notice")
+            e_name.pack(padx=14, pady=4, anchor=tk.W)
+            e_name.focus_set()
+
+            def do_save_popup():
+                name = e_name.get().strip() or "popup"
+                dest_path = self._get_unique_save_path(self.config.storage_popups_dir, name, ".png")
+                crop.save(dest_path)
+                dlg.destroy()
+                self.refresh_storage_popup_view()
+                self.append_log(f"🛡️ Filter popup '{dest_path.name}' berhasil ditambahkan ke daftar.")
+                messagebox.showinfo("Sukses", f"Berhasil menambahkan '{dest_path.name}' ke Filter Popup Storage!")
+
+            btn_box = tk.Frame(dlg, bg="#222428")
+            btn_box.pack(padx=14, pady=12, fill=tk.X)
+            tk.Button(btn_box, text="Simpan", bg="#238636", fg="#ffffff", font=("Segoe UI", 9, "bold"), padx=12, pady=4, relief="flat", command=do_save_popup).pack(side=tk.LEFT, padx=(0, 6))
+            tk.Button(btn_box, text="Batal", bg="#30363d", fg="#c9d1d9", font=("Segoe UI", 9), padx=10, pady=4, relief="flat", command=dlg.destroy).pack(side=tk.LEFT)
+
+        AreaSelectorWindow(self, "Pilih Judul Popup Storage", 1, 1, client_img, on_saved)
+
+    def refresh_storage_popup_view(self):
+        if not hasattr(self, 'storage_popup_frame'):
+            return
+
+        for widget in self.storage_popup_frame.winfo_children():
+            widget.destroy()
+
+        pop_dir = self.config.storage_popups_dir
+        popups = sorted(list(pop_dir.glob("*.png")) + list(pop_dir.glob("*.jpg")), key=lambda p: p.name.lower())
+
+        if hasattr(self, 'box_popup_frame'):
+            self.box_popup_frame.config(text=f" 🛡️ Filter Pop-up Penutup Storage ({len(popups)} Pop-up Terdaftar) ")
+
+        if not popups:
+            empty_lbl = tk.Label(
+                self.storage_popup_frame,
+                text="Belum ada filter popup terdaftar. Klik 'Potong Judul Popup dari Layar' untuk menambahkan (Notice, Quiz, dsb).",
+                bg="#161b22",
+                fg="#8b949e",
+                pady=15
+            )
+            empty_lbl.pack()
+            return
+
+        canvas = tk.Canvas(self.storage_popup_frame, bg="#161b22", highlightthickness=0, height=85)
+        scroll = tk.Scrollbar(self.storage_popup_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#161b22")
+
+        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scroll.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._popup_images = []
+        for p in popups:
+            row = tk.Frame(scrollable_frame, bg="#21262d", pady=2, padx=6)
+            row.pack(fill=tk.X, padx=6, pady=2)
+
+            try:
+                pil_img = Image.open(p)
+                w, h = pil_img.size
+                ratio = min(60 / w, 24 / h, 1.0)
+                disp_w = max(10, int(w * ratio))
+                disp_h = max(10, int(h * ratio))
+                pil_img = pil_img.resize((disp_w, disp_h), Image.Resampling.NEAREST)
+                tk_img = ImageTk.PhotoImage(pil_img)
+                self._popup_images.append(tk_img)
+
+                img_lbl = tk.Label(row, image=tk_img, bg="#21262d")
+                img_lbl.pack(side=tk.LEFT, padx=(0, 8))
+            except Exception:
+                pass
+
+            name_lbl = tk.Label(row, text=p.stem, font=("Segoe UI", 9, "bold"), bg="#21262d", fg="#e1e2e6")
+            name_lbl.pack(side=tk.LEFT)
+
+            badge = tk.Label(row, text=" [Auto-Close] ", font=("Segoe UI", 7, "bold"), bg="#d29922", fg="#0d1117", padx=4, pady=1)
+            badge.pack(side=tk.LEFT, padx=(8, 0))
+
+            del_btn = tk.Button(
+                row,
+                text="Hapus",
+                font=("Segoe UI", 8),
+                bg="#30363d",
+                fg="#e1e2e6",
+                relief="flat",
+                command=lambda path=p: self.delete_storage_popup_template(path)
+            )
+            del_btn.pack(side=tk.RIGHT)
+
+    def delete_storage_popup_template(self, path: Path):
+        if messagebox.askyesno("Konfirmasi", f"Hapus template popup '{path.name}' dari Filter Popup Storage?"):
+            try:
+                path.unlink()
+                self.refresh_storage_popup_view()
+            except Exception as e:
+                messagebox.showerror("Error", f"Gagal menghapus: {e}")
 
     def _on_toggle_auto_dismiss_popup(self):
         val = self.var_auto_dismiss_popup.get()
@@ -839,7 +1138,10 @@ class FarmerGUI(tk.Tk):
             widget.destroy()
 
         bl_dir = self.config.storage_blacklist_dir
-        icons = list(bl_dir.glob("*.png")) + list(bl_dir.glob("*.jpg"))
+        icons = sorted(list(bl_dir.glob("*.png")) + list(bl_dir.glob("*.jpg")), key=lambda p: p.name.lower())
+
+        if hasattr(self, 'box_storage_frame'):
+            self.box_storage_frame.config(text=f" 🚫 Daftar Item Blacklist Gudang ({len(icons)} Item Terdaftar) ")
 
         if not icons:
             empty_lbl = tk.Label(
@@ -923,36 +1225,35 @@ class FarmerGUI(tk.Tk):
         )
         desc.pack(anchor=tk.W, pady=(0, 10))
 
-        bar = tk.Frame(container, bg="#222428")
-        bar.pack(fill=tk.X, pady=(0, 10))
-
-        tk.Button(
-            bar,
-            text="➕ Tambah Gambar Ikon...",
-            font=("Segoe UI", 8, "bold"),
-            bg="#da3633",
-            fg="#ffffff",
-            relief="flat",
+        self.box_merchant_frame = tk.LabelFrame(
+            container,
+            text=" 🚫 Daftar Item Blacklist Jual NPC (Ditinggalkan di Tas) ",
+            bg="#222428",
+            fg="#f85149",
+            font=("Segoe UI", 10, "bold"),
             padx=10,
-            pady=4,
-            command=lambda: self.add_whitelist_icon(target="merchant")
-        ).pack(side=tk.LEFT, padx=(0, 8))
+            pady=10
+        )
+        self.box_merchant_frame.pack(fill=tk.BOTH, expand=True)
+
+        bar = tk.Frame(self.box_merchant_frame, bg="#222428")
+        bar.pack(fill=tk.X, pady=(0, 8))
 
         tk.Button(
             bar,
             text="✂️ Potong Ikon dari Slot Tas...",
-            font=("Segoe UI", 8, "bold"),
+            font=("Segoe UI", 9, "bold"),
             bg="#1f6feb",
             fg="#ffffff",
             relief="flat",
-            padx=10,
-            pady=4,
+            padx=12,
+            pady=5,
             command=lambda: self.crop_icon_dialog(target="merchant")
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         tk.Button(
             bar,
-            text="🔄 Refresh Daftar",
+            text="🔄 Refresh",
             font=("Segoe UI", 8),
             bg="#30363d",
             fg="#c9d1d9",
@@ -962,7 +1263,7 @@ class FarmerGUI(tk.Tk):
             command=self.refresh_whitelist_view
         ).pack(side=tk.LEFT)
 
-        self.whitelist_frame = tk.Frame(container, bg="#161b22", relief="sunken", bd=1)
+        self.whitelist_frame = tk.Frame(self.box_merchant_frame, bg="#161b22", relief="sunken", bd=1)
         self.whitelist_frame.pack(fill=tk.BOTH, expand=True)
 
         self.refresh_whitelist_view()
@@ -972,7 +1273,10 @@ class FarmerGUI(tk.Tk):
             widget.destroy()
 
         merchant_bl_dir = self.config.merchant_blacklist_dir
-        icons = list(merchant_bl_dir.glob("*.png")) + list(merchant_bl_dir.glob("*.jpg"))
+        icons = sorted(list(merchant_bl_dir.glob("*.png")) + list(merchant_bl_dir.glob("*.jpg")), key=lambda p: p.name.lower())
+
+        if hasattr(self, 'box_merchant_frame'):
+            self.box_merchant_frame.config(text=f" 🚫 Daftar Item Blacklist Jual NPC ({len(icons)} Item Terdaftar) ")
 
         if not icons:
             empty_lbl = tk.Label(
@@ -1042,6 +1346,29 @@ class FarmerGUI(tk.Tk):
         else:
             return self.config.merchant_blacklist_dir, "Blacklist Jual NPC"
 
+    def _get_unique_save_path(self, target_dir: Path, base_name: str, ext: str = ".png") -> Path:
+        """
+        Generates a non-overwriting file path.
+        If 'base_name.png' exists, produces 'base_name_2.png', 'base_name_3.png', etc.
+        Ensures existing blacklist items are never overwritten when adding new ones.
+        """
+        clean_name = base_name.strip()
+        if clean_name.lower().endswith(ext.lower()):
+            clean_name = clean_name[:-len(ext)]
+        if not clean_name:
+            clean_name = "item"
+
+        candidate = target_dir / f"{clean_name}{ext}"
+        if not candidate.exists():
+            return candidate
+
+        idx = 2
+        while True:
+            candidate = target_dir / f"{clean_name}_{idx}{ext}"
+            if not candidate.exists():
+                return candidate
+            idx += 1
+
     def add_whitelist_icon(self, target: str = "storage_blacklist"):
         target_dir, target_name = self._get_target_dir_and_title(target)
 
@@ -1051,7 +1378,7 @@ class FarmerGUI(tk.Tk):
         )
         if f:
             src = Path(f)
-            dest = target_dir / src.name
+            dest = self._get_unique_save_path(target_dir, src.stem, src.suffix or ".png")
             try:
                 im = Image.open(src)
                 im.save(dest)
@@ -1059,7 +1386,8 @@ class FarmerGUI(tk.Tk):
                     self.refresh_storage_blacklist_view()
                 else:
                     self.refresh_whitelist_view()
-                messagebox.showinfo("Sukses", f"Ikon '{src.name}' berhasil ditambahkan ke {target_name}!")
+                self.append_log(f"Ikon ditambahkan ke {target_name}: '{dest.name}'.")
+                messagebox.showinfo("Sukses", f"Ikon '{dest.name}' berhasil ditambahkan ke {target_name}!\n(Data bertambah tanpa menimpa file lama)")
             except Exception as e:
                 messagebox.showerror("Error", f"Gagal menyimpan ikon: {e}")
 
@@ -1178,7 +1506,7 @@ class FarmerGUI(tk.Tk):
             r = int(row_entry.get().strip())
             name = name_entry.get().strip() or f"item_c{c}_r{r}"
 
-            save_path = target_dir / f"{name}.png"
+            save_path = self._get_unique_save_path(target_dir, name, ".png")
             current_crop[0].save(save_path)
 
             if target == "storage_blacklist":
@@ -1187,7 +1515,13 @@ class FarmerGUI(tk.Tk):
                 self.refresh_whitelist_view()
 
             win.destroy()
-            messagebox.showinfo("Sukses", f"Berhasil memotong ikon slot [{r},{c}] dan disimpan ke '{target_name}' sebagai '{name}.png'!")
+            self.append_log(f"✂️ Ikon [{r},{c}] disimpan ke {target_name}: '{save_path.name}'.")
+            messagebox.showinfo(
+                "Sukses",
+                f"Berhasil memotong ikon slot [{r},{c}] dan disimpan ke '{target_name}' sebagai:\n\n"
+                f"📄 {save_path.name}\n\n"
+                f"✓ Data item lama tidak tertimpa dan jumlah blacklist berhasil bertambah!"
+            )
 
         btn_bar = tk.Frame(win, bg="#222428")
         btn_bar.pack(pady=4)
@@ -1457,7 +1791,8 @@ class FarmerGUI(tk.Tk):
     # TAB 7: Settings
     # =========================================================================
     def _build_settings_tab(self):
-        container = tk.Frame(self.tab_settings, bg="#222428", padx=16, pady=14)
+        _, scroll_inner = self._create_scrollable_container(self.tab_settings)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
         tk.Label(container, text="Konfigurasi Kecepatan & Delay (NFR-1)", font=("Segoe UI", 11, "bold"), bg="#222428", fg="#58a6ff").pack(anchor=tk.W, pady=(0, 10))
@@ -1473,6 +1808,7 @@ class FarmerGUI(tk.Tk):
             ("Sensitivitas Deteksi Kosong (StdDev):", "rules", "empty_slot_threshold"),
             ("Threshold Match Blacklist Jual (0.5 - 1.0):", "rules", "sell_whitelist_match_threshold"),
             ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
+            ("Threshold Match Popup Storage (0.5 - 1.0):", "storage_popup", "match_threshold"),
             ("Interval Cek Auto Hunt (detik):", "delays", "hunt_loop_interval_sec"),
             ("Klik Popup Storage X (Teks Kiri Atas):", "storage_popup", "click_x"),
             ("Klik Popup Storage Y (Teks Kiri Atas):", "storage_popup", "click_y"),
@@ -1483,6 +1819,8 @@ class FarmerGUI(tk.Tk):
             val = self.config.get(sec, key)
             if val is None and key == "storage_blacklist_match_threshold":
                 val = self.config.get("rules", "sell_whitelist_match_threshold", 0.50)
+            if val is None and key == "match_threshold":
+                val = 0.70
             e = tk.Entry(grid, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=12)
             e.insert(0, str(val))
             e.grid(row=i, column=1, sticky=tk.W, pady=6)
@@ -1652,6 +1990,63 @@ class FarmerGUI(tk.Tk):
             self.txt_log.see(tk.END)
         self.after(0, _append)
 
+    def zeroin_game_window(self):
+        """Move the game window to screen coordinate (0, 0)."""
+        if not self.wm.hwnd:
+            self.wm.find_window()
+
+        if not self.wm.hwnd:
+            self.append_log("⚠️ Jendela game belum terdeteksi. Buka game atau pilih jendela via 'Cek Window'.")
+            self.open_window_picker()
+            return
+
+        success = self.wm.zero_in_window()
+        if success:
+            self.append_log(f"📍 Window game '{self.wm.window_title}' berhasil diposisikan ke koordinat (0, 0).")
+        else:
+            self.append_log("⚠️ Gagal memposisikan window game ke (0, 0).")
+
+    def snap_macro_beside_game(self):
+        """Snaps the macro window right beside the game window so they don't overlap."""
+        if not self.wm.hwnd:
+            self.wm.find_window()
+
+        if not self.wm.hwnd:
+            self.append_log("⚠️ Jendela game belum terdeteksi. Buka game atau pilih jendela via 'Cek Window'.")
+            self.open_window_picker()
+            return
+
+        self.wm.update_bounds()
+        if not self.wm.window_rect:
+            self.append_log("⚠️ Gagal membaca batas koordinat jendela game.")
+            return
+
+        left, top, right, bottom = self.wm.window_rect
+        self.update_idletasks()
+        cur_w = self.winfo_width()
+        cur_h = self.winfo_height()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+
+        target_x = right
+        target_y = max(0, top)
+
+        # Ensure macro window stays nicely visible on screen
+        if target_x + cur_w > sw:
+            if sw > right:
+                # Align as close to right edge of screen as possible
+                target_x = max(0, sw - cur_w)
+            elif left >= cur_w:
+                # If there's room on the left side of the game window
+                target_x = max(0, left - cur_w)
+
+        # Ensure target_y does not push window below taskbar/screen bottom
+        if target_y + cur_h > sh:
+            target_y = max(0, sh - cur_h - 40)
+
+        self.geometry(f"{cur_w}x{cur_h}+{target_x}+{target_y}")
+        self.append_log(f"🧲 Makro ditempelkan di samping game: X={target_x}, Y={target_y}")
+
     def check_game_window(self):
         found = self.wm.find_window()
         if found:
@@ -1782,7 +2177,17 @@ class FarmerGUI(tk.Tk):
                     self.bot.is_running = True
                     self.bot.skills.start()
                     try:
+                        last_death_check = 0.0
                         while self.bot.is_running:
+                            now = time.time()
+                            if now - last_death_check >= 1.5:
+                                last_death_check = now
+                                if self.wm.is_foreground():
+                                    client_img = self.screen.capture_client()
+                                    if self.matcher.detect_death_popup(client_img):
+                                        self.append_log("🚨 [SAFETY STOP] Karakter mati terdeteksi! Menghentikan Auto Skill.")
+                                        self._on_character_death()
+                                        break
                             time.sleep(0.2)
                     finally:
                         self.bot.skills.stop()
@@ -1837,6 +2242,26 @@ class FarmerGUI(tk.Tk):
         self.status_badge.config(text="IDLE (F11 Mulai | F12 Stop)", fg="#3fb950", bg="#161b22")
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL)
+
+    def _on_character_death(self):
+        def _update():
+            self.stop_macro()
+            self.status_badge.config(
+                text="🚨 KARAKTER MATI (Makro Dihentikan)",
+                bg="#da3633",
+                fg="#ffffff"
+            )
+            self.append_log("🚨 [PERINGATAN] Makro dihentikan otomatis karena mendeteksi popup respawn (Karakter Telah Mati)!")
+            try:
+                import winsound
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+            except Exception:
+                try:
+                    sys.stdout.write('\a')
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+        self.after(0, _update)
 
     # =========================================================================
     # AUTO-UPDATER & NOTIFIKASI PEMBARUAN
