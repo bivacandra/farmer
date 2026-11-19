@@ -216,17 +216,18 @@ class FarmerBot:
     # =========================================================================
     # HELPER: Tutup Objek / Popup yang Menutupi Storage (Notice, Quiz, Raffle)
     # =========================================================================
-    def dismiss_storage_popup(self, manual: bool = False) -> bool:
+    def dismiss_storage_popup(self, manual: bool = False, client_img: Optional[Image.Image] = None) -> bool:
         """
         Menutup objek / popup modal (Notice, Lucky Number, Raffle, Quiz) yang menutupi Storage.
         Hanya bertindak jika terdeteksi popup dari template yang cocok (score >= threshold).
         Jika TIDAK ada popup yang cocok atau TIDAK ada template popup terdaftar,
         makro TIDAK AKAN mengklik atau menekan Esc agar jendela Storage tidak ikut tertutup!
         """
-        self.wm.activate_window()
-        time.sleep(0.12)
+        if client_img is None:
+            self.wm.activate_window()
+            time.sleep(0.12)
+            client_img = self.screen.capture_client()
 
-        client_img = self.screen.capture_client()
         th = float(self.config.get("storage_popup", "match_threshold", 0.70))
         match = self.matcher.detect_storage_popup(client_img, threshold=th)
 
@@ -234,6 +235,8 @@ class FarmerBot:
             p_name, cx, cy, conf = match
             self.log(f"🛡️ [Popup Guard] Terdeteksi popup '{p_name}' di ({cx}, {cy}) [Score: {conf:.2f} >= Min:{th:.2f}].")
             self.log(f"🛡️ [Popup Guard] Mengklik judul popup ({cx}, {cy}) lalu menekan Esc 1x untuk menutup modal...")
+            self.wm.activate_window()
+            time.sleep(0.05)
             self.input.click(cx, cy)
             time.sleep(0.15)
             self.input.press_key("esc")
@@ -515,6 +518,12 @@ class FarmerBot:
                         self.on_death_callback()
                     return
 
+                # 0b. Popup Guard: Cek & tutup popup modal (Notice, Quiz, Raffle) yang menghalangi
+                if self.config.get("storage_popup", "auto_dismiss", False):
+                    if self.dismiss_storage_popup(client_img=client_img):
+                        # Ambil tangkapan layar baru setelah popup ditutup
+                        client_img = self.screen.capture_client()
+
                 blacklist_icons = list(self.config.storage_blacklist_dir.glob("*.png")) + list(self.config.storage_blacklist_dir.glob("*.jpg"))
 
                 items_to_transfer = []
@@ -585,10 +594,30 @@ class FarmerBot:
 
                 # 3. Jeda interval sebelum pemindaian berikutnya
                 sleep_start = time.time()
+                last_passive_guard_check = time.time()
                 while time.time() - sleep_start < interval:
                     if not self.is_running:
                         return
                     time.sleep(0.1)
+
+                    # Pemeriksaan pasif responsif tiap ~1.5 detik (Safety Stop & Popup Guard)
+                    if time.time() - last_passive_guard_check >= 1.5:
+                        last_passive_guard_check = time.time()
+                        if self.wm.is_foreground():
+                            chk_img = self.screen.capture_client()
+                            # Cek Safety Stop Kematian
+                            d_match = self.matcher.detect_death_popup(chk_img)
+                            if d_match:
+                                cx, cy, conf = d_match
+                                self.log(f"🚨 [SAFETY STOP] KARAKTER MATI! Terdeteksi popup respawn di ({cx}, {cy}) [Match: {conf:.2f}].")
+                                self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
+                                self.is_running = False
+                                if hasattr(self, 'on_death_callback') and self.on_death_callback:
+                                    self.on_death_callback()
+                                return
+                            # Cek Popup Guard
+                            if self.config.get("storage_popup", "auto_dismiss", False):
+                                self.dismiss_storage_popup(client_img=chk_img)
 
         except InterruptedError:
             self.log("Auto Hunt dibatalkan oleh user.")

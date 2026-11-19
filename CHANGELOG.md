@@ -5,6 +5,17 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.0.9] - 2026-11-19
+
+### 🛠️ Fixed & Improved
+- **Popup Guard Aktif di Setiap Putaran Auto Hunt Loop**:
+  - Memperbaiki masalah di mana Auto Hunt Loop tidak mendeteksi popup penutup jika tidak ada item baru di tas yang siap dipindahkan ke gudang (`items_to_transfer` kosong).
+  - Pengecekan `dismiss_storage_popup()` kini aktif di awal setiap siklus Auto Hunt dan dipindai secara responsif tiap ~1.5 detik di sela-sela interval tunggu, sehingga popup Notice / Quiz / Raffle langsung terdeteksi & ditutup seketika.
+- **Pencarian Popup di Seluruh Layar (Full Screen Match)**:
+  - Melepas batas crop pencarian `(650x600)` sehingga popup yang digeser ke posisi mana pun di jendela game Tantra (`1024x768`) tetap dapat terdeteksi dan ditutup secara presisi.
+
+---
+
 ## [v1.0.8] - 2026-11-19
 
 ### 🛠️ Fixed

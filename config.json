@@ -17,7 +17,7 @@
     "click_delay_sec": 0.1,
     "popup_wait_timeout_sec": 2.0,
     "post_action_delay_sec": 0.25,
-    "hunt_loop_interval_sec": 1.5
+    "hunt_loop_interval_sec": 60
   },
   "inventory": {
     "x1": 543,
@@ -54,7 +54,7 @@
     "click_x": 85,
     "click_y": 55,
     "auto_dismiss": true,
-    "match_threshold": 0.70
+    "match_threshold": 0.7
   },
   "rules": {
     "empty_slot_threshold": 18.0,

@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.0.8"
+APP_VERSION = "v1.0.9"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "window": {

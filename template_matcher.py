@@ -184,11 +184,8 @@ class TemplateMatcher:
         if not popup_files:
             return None
 
-        w, h = client_img.size
-        # Search region: left half of screen where storage and notice popups appear
-        search_x2 = min(w, 650)
-        search_y2 = min(h, 600)
-        search_region = client_img.crop((0, 0, search_x2, search_y2))
+        # Search region: seluruh layar game Tantra agar popup tetap terdeteksi meski digeser ke mana saja
+        search_region = client_img
 
         best_match = None
         best_conf = 0.0
