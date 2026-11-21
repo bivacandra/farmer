@@ -140,20 +140,16 @@ class TemplateMatcher:
 
         return False
 
-    def detect_death_popup(self, client_img: Image.Image, threshold: float = 0.70) -> Optional[Tuple[int, int, float]]:
+    def detect_death_popup(self, client_img: Image.Image, threshold: float = 0.65) -> Optional[Tuple[int, int, float]]:
         """
         Detects character death respawn dialog:
         'If you click OK, you will respawn at the last saved location'.
-        Checks popup_respawn_death.png and death_text_needle.png in templates_dir.
+        Checks popup_respawn_death.png and death_text_needle.png in templates_dir across full screen.
+        Compatible with 800x600, 1024x768, and any dragged popup positions.
         Returns (center_x, center_y, confidence) or None.
         """
-        w, h = client_img.size
-        # Search in central area of the client window
-        off_x = max(0, (w - 600) // 2)
-        off_y = max(0, (h - 450) // 2)
-        search_w = min(w - off_x, 600)
-        search_h = min(h - off_y, 450)
-        search_region = client_img.crop((off_x, off_y, off_x + search_w, off_y + search_h))
+        # Full client image search to ensure detection in all resolutions (800x600, 1024x768)
+        search_region = client_img
 
         candidates = [
             self.templates_dir / "popup_respawn_death.png",
@@ -167,7 +163,7 @@ class TemplateMatcher:
                     res = self.match_template_in_image(search_region, needle, threshold=threshold)
                     if res is not None:
                         rx, ry, conf = res
-                        return (off_x + rx, off_y + ry, conf)
+                        return (rx, ry, conf)
                 except Exception as e:
                     print(f"[TemplateMatcher] Error matching death popup: {e}")
 

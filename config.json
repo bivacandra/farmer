@@ -1,4 +1,7 @@
 {
+  "ui": {
+    "compact_mode": false
+  },
   "window": {
     "title_patterns": [
       "Kathana - The Reign of Shadow",

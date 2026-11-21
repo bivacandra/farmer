@@ -5,6 +5,31 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.1.0] - 2026-11-22
+
+### 🟢 Added & Improved
+- **Mode Compact untuk Layar 1366x768 & Game 800x600 (Issue #8)**:
+  - Tombol toggle satu-klik *"🗕 Mode Compact"* / *"🗖 Mode Normal"* pada header aplikasi.
+  - Pada Mode Compact, lebar jendela disesuaikan menjadi ~`520px` dan otomatis menempel di samping kanan jendela game (*Snap-to-Game*), mencegah tumpang tindih (*overlap*) pada layar resolusi `1366x768`.
+  - Batas minimum ukuran jendela (`minsize`) diperkecil menjadi `(460, 480)` sehingga pengguna bebas mengatur ukuran jendela makro.
+  - Tata letak Dashboard dibuat responsif dengan pemisahan baris tombol aksi dan bantuan penempatan jendela.
+  - Preferensi mode compact disimpan otomatis di [config.json](file:///home/simple/Personals/tantra/farmer/config.json) (`ui.compact_mode`).
+- **Kustomisasi Shortcut Keyboard Semua Fitur (Issue #9)**:
+  - Panel konfigurasi baru *"⌨️ Pengaturan Shortcut / Global Hotkeys"* di Tab Pengaturan (Settings).
+  - Pengguna dapat mengganti shortcut untuk seluruh aksi: *Mulai Makro* (default `F11`), *Hentikan Makro* (default `F12`), *Storage ke Tas* (`F9`), *Tas ke NPC Merchant* (`F10`), dan *Tutup Popup* (`F8`).
+  - Sangat berguna bagi pengguna Remote Desktop (AnyDesk, TeamViewer, RDP) yang tombol `F11`/`F12`-nya sering tertahan atau bentrok.
+  - Saat disimpan, hotkey langsung terdaftar ulang secara *live* tanpa perlu restart aplikasi.
+  - Seluruh label tombol dan badge status di antarmuka otomatis dinamis menampilkan tombol shortcut yang aktif.
+
+### 🛠️ Fixed
+- **Safety Stop Karakter Mati (Respawn Dialog Detection) (Issue #10)**:
+  - Melepas pembatasan `is_foreground()` pada pemeriksaan pasif kematian, sehingga deteksi kematian tetap aktif memindai game meskipun pengguna sedang fokus pada jendela lain atau mengontrol lewat Remote Desktop.
+  - Memindai seluruh area klien game (*Full Client Match*) tanpa pemotongan statis sehingga kompatibel penuh dengan resolusi game `800x600` maupun `1024x768` di mana pun dialog respawn berada.
+  - Menghentikan proses Auto Skill seketika saat deteksi kematian terpicu.
+  - Memperbaiki bug status badge di mana badge peringatan merah `🚨 KARAKTER MATI` sebelumnya tertimpa kembali menjadi status `IDLE` oleh blok `finally`.
+
+---
+
 ## [v1.0.9] - 2026-11-19
 
 ### 🛠️ Fixed & Improved

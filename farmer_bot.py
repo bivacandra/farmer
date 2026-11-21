@@ -514,6 +514,7 @@ class FarmerBot:
                     self.log(f"🚨 [SAFETY STOP] KARAKTER MATI! Terdeteksi popup respawn di ({cx}, {cy}) [Match: {conf:.2f}].")
                     self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
                     self.is_running = False
+                    self.skills.stop()
                     if hasattr(self, 'on_death_callback') and self.on_death_callback:
                         self.on_death_callback()
                     return
@@ -601,23 +602,24 @@ class FarmerBot:
                     time.sleep(0.1)
 
                     # Pemeriksaan pasif responsif tiap ~1.5 detik (Safety Stop & Popup Guard)
+                    # Tidak membatasi dengan is_foreground() agar tetap aktif saat remote desktop atau window berganti fokus
                     if time.time() - last_passive_guard_check >= 1.5:
                         last_passive_guard_check = time.time()
-                        if self.wm.is_foreground():
-                            chk_img = self.screen.capture_client()
-                            # Cek Safety Stop Kematian
-                            d_match = self.matcher.detect_death_popup(chk_img)
-                            if d_match:
-                                cx, cy, conf = d_match
-                                self.log(f"🚨 [SAFETY STOP] KARAKTER MATI! Terdeteksi popup respawn di ({cx}, {cy}) [Match: {conf:.2f}].")
-                                self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
-                                self.is_running = False
-                                if hasattr(self, 'on_death_callback') and self.on_death_callback:
-                                    self.on_death_callback()
-                                return
-                            # Cek Popup Guard
-                            if self.config.get("storage_popup", "auto_dismiss", False):
-                                self.dismiss_storage_popup(client_img=chk_img)
+                        chk_img = self.screen.capture_client()
+                        # Cek Safety Stop Kematian
+                        d_match = self.matcher.detect_death_popup(chk_img)
+                        if d_match:
+                            cx, cy, conf = d_match
+                            self.log(f"🚨 [SAFETY STOP] KARAKTER MATI! Terdeteksi popup respawn di ({cx}, {cy}) [Match: {conf:.2f}].")
+                            self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
+                            self.is_running = False
+                            self.skills.stop()
+                            if hasattr(self, 'on_death_callback') and self.on_death_callback:
+                                self.on_death_callback()
+                            return
+                        # Cek Popup Guard
+                        if self.config.get("storage_popup", "auto_dismiss", False):
+                            self.dismiss_storage_popup(client_img=chk_img)
 
         except InterruptedError:
             self.log("Auto Hunt dibatalkan oleh user.")

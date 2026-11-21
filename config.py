@@ -9,9 +9,12 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.0.9"
+APP_VERSION = "v1.1.0"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
+    "ui": {
+        "compact_mode": False
+    },
     "window": {
         "title_patterns": [
             "Kathana - The Reign of Shadow",

@@ -19,7 +19,15 @@ Bagi pengguna atau tester yang menemukan kendala (*bug*) atau memiliki usulan fi
 
 ## 🚀 Rencana Rilis Mendatang
 
-### 🎯 Versi Berikutnya (v1.0.7 - Planned / In Progress)
+### 🎯 Versi Terbaru (v1.1.0 - Released)
+- [x] **Mode Compact untuk Layar Resolusi 1366x768 & Game 800x600 (Issue #8)**:
+  - Toggle satu-klik Mode Compact (~520px) dengan auto-snap ke samping game dan layout responsif tanpa tumpang tindih.
+- [x] **Kustomisasi Shortcut Keyboard Semua Fitur (Issue #9)**:
+  - Panel konfigurasi hotkey di Tab Pengaturan untuk mengganti tombol Start, Stop, dan task lainnya (cocok untuk pengguna Remote Desktop).
+- [x] **Safety Stop Karakter Mati Tidak Berhenti (Issue #10)**:
+  - Deteksi respawn dialog kematian tanpa hambatan foreground focus dan kompatibel penuh dengan resolusi 800x600 maupun 1024x768.
+
+### 🎯 Versi Sebelumnya (v1.0.7 - v1.0.9)
 - [x] **Tombol Zero-In Game Window (0, 0) (Issue #2)**:
   - Tombol pada Dashboard dan Kalibrasi Area untuk memposisikan window game Tantra tepat ke sudut kiri atas (0, 0).
 - [x] **Tombol Snap Makro ke Samping Window Game (Issue #3)**:

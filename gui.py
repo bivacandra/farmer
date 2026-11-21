@@ -182,12 +182,23 @@ class FarmerGUI(tk.Tk):
         self.title(f"Tantra Farmer Macro {APP_VERSION}")
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
-        default_w = min(960, max(880, sw - 40))
-        default_h = min(780, max(620, sh - 80))
-        self.geometry(f"{default_w}x{default_h}")
-        self.minsize(860, 580)
+
+        self.is_compact_mode = bool(self.config.get("ui", "compact_mode", False))
+        self.is_character_dead = False
+
+        if self.is_compact_mode:
+            default_w = 520
+            default_h = min(760, max(560, sh - 70))
+            self.minsize(460, 480)
+            self.geometry(f"{default_w}x{default_h}")
+        else:
+            default_w = min(960, max(880, sw - 40))
+            default_h = min(780, max(620, sh - 80))
+            self.minsize(460, 480)
+            self.geometry(f"{default_w}x{default_h}")
+            self._center_window(default_w, default_h)
+
         self.resizable(True, True)
-        self._center_window(default_w, default_h)
 
         # Apply dark theme styling
         self._setup_styles()
@@ -294,44 +305,106 @@ class FarmerGUI(tk.Tk):
         return outer, inner
 
     def _build_header(self):
-        header_frame = tk.Frame(self, bg="#202225", height=60, padx=16, pady=10)
+        header_frame = tk.Frame(self, bg="#202225", height=50, padx=12, pady=8)
         header_frame.pack(fill=tk.X)
         self.header_frame = header_frame
 
-        title_lbl = tk.Label(
+        init_title = "Tantra Farmer" if self.is_compact_mode else "Tantra Auto-Farmer & Inventory Manager"
+        self.title_lbl = tk.Label(
             header_frame,
-            text="Tantra Auto-Farmer & Inventory Manager",
-            font=("Segoe UI", 14, "bold"),
+            text=init_title,
+            font=("Segoe UI", 12 if self.is_compact_mode else 13, "bold"),
             fg="#58a6ff",
             bg="#202225"
         )
-        title_lbl.pack(side=tk.LEFT)
+        self.title_lbl.pack(side=tk.LEFT)
 
-        version_badge = tk.Label(
+        self.version_badge = tk.Label(
             header_frame,
             text=f" {APP_VERSION} ",
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8, "bold"),
             fg="#ffffff",
             bg="#238636",
-            padx=6,
+            padx=5,
             pady=2,
             relief="solid",
             bd=1
         )
-        version_badge.pack(side=tk.LEFT, padx=(10, 0))
+        self.version_badge.pack(side=tk.LEFT, padx=(8, 0))
 
+        btn_compact_txt = "🗖 Normal" if self.is_compact_mode else "🗕 Compact"
+        btn_compact_bg = "#1f6feb" if self.is_compact_mode else "#30363d"
+        self.btn_toggle_compact = tk.Button(
+            header_frame,
+            text=btn_compact_txt,
+            font=("Segoe UI", 8, "bold"),
+            bg=btn_compact_bg,
+            fg="#ffffff" if self.is_compact_mode else "#c9d1d9",
+            activebackground="#388bfd",
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=2,
+            command=self.toggle_compact_mode
+        )
+        self.btn_toggle_compact.pack(side=tk.LEFT, padx=(8, 0))
+
+        start_hk = self.config.get("hotkeys", "start", "f11").upper()
+        stop_hk = self.config.get("hotkeys", "stop", "f12").upper()
         self.status_badge = tk.Label(
             header_frame,
-            text="IDLE (F11 Mulai | F12 Stop)",
-            font=("Segoe UI", 10, "bold"),
+            text=f"IDLE ({start_hk} | {stop_hk})",
+            font=("Segoe UI", 9, "bold"),
             fg="#3fb950",
             bg="#161b22",
-            padx=12,
-            pady=4,
+            padx=10,
+            pady=3,
             relief="solid",
             bd=1
         )
         self.status_badge.pack(side=tk.RIGHT)
+
+    def toggle_compact_mode(self):
+        self.is_compact_mode = not self.is_compact_mode
+        self._apply_compact_mode(self.is_compact_mode)
+        self.config.set("ui", "compact_mode", self.is_compact_mode)
+        self.config.save()
+
+    def _apply_compact_mode(self, is_compact: bool):
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+
+        if is_compact:
+            self.minsize(460, 480)
+            compact_w = 520
+            compact_h = min(760, max(560, sh - 70))
+
+            # Snap ke samping kanan jendela game Tantra jika ditemukan
+            if self.wm.hwnd:
+                self.wm.update_bounds()
+                game_x, game_y, game_w, game_h = self.wm.client_rect or (0, 0, 800, 600)
+                macro_x = min(sw - compact_w - 5, max(0, game_x + game_w + 2))
+                macro_y = max(0, game_y)
+            else:
+                macro_x = max(0, sw - compact_w - 10)
+                macro_y = 20
+
+            self.geometry(f"{compact_w}x{compact_h}+{macro_x}+{macro_y}")
+            if hasattr(self, "btn_toggle_compact"):
+                self.btn_toggle_compact.config(text="🗖 Normal", bg="#1f6feb", fg="#ffffff")
+            if hasattr(self, "title_lbl"):
+                self.title_lbl.config(text="Tantra Farmer", font=("Segoe UI", 12, "bold"))
+            self.append_log("Tampilan dialihkan ke Mode Compact (Lebar 520px - optimal layar 1366x768).")
+        else:
+            self.minsize(460, 480)
+            norm_w = min(960, max(880, sw - 40))
+            norm_h = min(780, max(620, sh - 80))
+            self.geometry(f"{norm_w}x{norm_h}")
+            if hasattr(self, "btn_toggle_compact"):
+                self.btn_toggle_compact.config(text="🗕 Compact", bg="#30363d", fg="#c9d1d9")
+            if hasattr(self, "title_lbl"):
+                self.title_lbl.config(text="Tantra Auto-Farmer & Inventory Manager", font=("Segoe UI", 13, "bold"))
+            self.append_log("Tampilan dialihkan ke Mode Normal.")
 
     def _build_notebook(self):
         self.notebook = ttk.Notebook(self)
@@ -407,79 +480,87 @@ class FarmerGUI(tk.Tk):
             )
             rb.pack(anchor=tk.W, pady=3)
 
-        btn_frame = tk.Frame(container, bg="#222428", pady=6)
-        btn_frame.pack(fill=tk.X)
+        # Row 1: Primary Action Buttons (Start / Stop)
+        act_row = tk.Frame(container, bg="#222428", pady=4)
+        act_row.pack(fill=tk.X)
+
+        start_k = self.config.get("hotkeys", "start", "f11").upper()
+        stop_k = self.config.get("hotkeys", "stop", "f12").upper()
 
         self.btn_start = tk.Button(
-            btn_frame,
-            text="▶ MULAI (F11)",
-            font=("Segoe UI", 11, "bold"),
+            act_row,
+            text=f"▶ MULAI ({start_k})",
+            font=("Segoe UI", 10, "bold"),
             bg="#238636",
             fg="#ffffff",
             activebackground="#2ea043",
             relief="flat",
-            padx=20,
-            pady=8,
+            padx=16,
+            pady=7,
             command=self.start_macro
         )
-        self.btn_start.pack(side=tk.LEFT, padx=(0, 10))
+        self.btn_start.pack(side=tk.LEFT, padx=(0, 8), fill=tk.X, expand=True)
 
         self.btn_stop = tk.Button(
-            btn_frame,
-            text="⏹ BERHENTI (F12)",
-            font=("Segoe UI", 11, "bold"),
+            act_row,
+            text=f"⏹ STOP ({stop_k})",
+            font=("Segoe UI", 10, "bold"),
             bg="#da3633",
             fg="#ffffff",
             activebackground="#f85149",
             relief="flat",
-            padx=20,
-            pady=8,
+            padx=16,
+            pady=7,
             command=self.stop_macro
         )
-        self.btn_stop.pack(side=tk.LEFT)
+        self.btn_stop.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        self.btn_find_window = tk.Button(
-            btn_frame,
-            text="🔍 Cek Window",
-            font=("Segoe UI", 9),
-            bg="#30363d",
-            fg="#c9d1d9",
-            relief="flat",
-            padx=10,
-            pady=8,
-            command=self.check_game_window
-        )
-        self.btn_find_window.pack(side=tk.RIGHT)
-
-        self.btn_snap = tk.Button(
-            btn_frame,
-            text="🧲 Snap Samping Game",
-            font=("Segoe UI", 9, "bold"),
-            bg="#21262d",
-            fg="#79c0ff",
-            relief="flat",
-            padx=10,
-            pady=8,
-            command=self.snap_macro_beside_game
-        )
-        self.btn_snap.pack(side=tk.RIGHT, padx=(0, 6))
+        # Row 2: Window Positioning Helpers
+        win_row = tk.Frame(container, bg="#222428", pady=3)
+        win_row.pack(fill=tk.X)
 
         self.btn_zeroin = tk.Button(
-            btn_frame,
+            win_row,
             text="📍 Zero-In (0, 0)",
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8, "bold"),
             bg="#21262d",
             fg="#58a6ff",
             relief="flat",
-            padx=10,
-            pady=8,
+            padx=6,
+            pady=4,
             command=self.zeroin_game_window
         )
-        self.btn_zeroin.pack(side=tk.RIGHT, padx=(0, 6))
+        self.btn_zeroin.pack(side=tk.LEFT, padx=(0, 4), fill=tk.X, expand=True)
+
+        self.btn_snap = tk.Button(
+            win_row,
+            text="🧲 Snap Samping",
+            font=("Segoe UI", 8, "bold"),
+            bg="#21262d",
+            fg="#79c0ff",
+            relief="flat",
+            padx=6,
+            pady=4,
+            command=self.snap_macro_beside_game
+        )
+        self.btn_snap.pack(side=tk.LEFT, padx=(0, 4), fill=tk.X, expand=True)
+
+        self.btn_find_window = tk.Button(
+            win_row,
+            text="🔍 Cek Window",
+            font=("Segoe UI", 8),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=6,
+            pady=4,
+            command=self.check_game_window
+        )
+        self.btn_find_window.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         # Quick Shortcuts Panel
         quick_frame = tk.LabelFrame(container, text=" ⚡ Tombol Aksi Cepat / Shortcut Keyboard Langsung ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
-        quick_frame.pack(fill=tk.X, pady=(10, 0))
+        quick_frame.pack(fill=tk.X, pady=(8, 0))
 
         q_btn_bar = tk.Frame(quick_frame, bg="#222428")
         q_btn_bar.pack(fill=tk.X)
@@ -488,44 +569,47 @@ class FarmerGUI(tk.Tk):
         i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
         pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
 
-        tk.Button(
+        self.btn_quick_s2i = tk.Button(
             q_btn_bar,
-            text=f"📦 Tarik Storage -> Tas [{s2i_hk}]",
-            font=("Segoe UI", 9, "bold"),
+            text=f"📦 Tarik Storage [{s2i_hk}]",
+            font=("Segoe UI", 8, "bold"),
             bg="#1f6feb",
             fg="#ffffff",
             activebackground="#388bfd",
             relief="flat",
-            padx=10,
-            pady=6,
+            padx=6,
+            pady=5,
             command=lambda: self.run_specific_task("storage_to_inv")
-        ).pack(side=tk.LEFT, padx=(0, 8))
+        )
+        self.btn_quick_s2i.pack(side=tk.LEFT, padx=(0, 4), fill=tk.X, expand=True)
 
-        tk.Button(
+        self.btn_quick_i2n = tk.Button(
             q_btn_bar,
-            text=f"💰 Jual Tas -> NPC [{i2n_hk}]",
-            font=("Segoe UI", 9, "bold"),
+            text=f"💰 Jual NPC [{i2n_hk}]",
+            font=("Segoe UI", 8, "bold"),
             bg="#8957e5",
             fg="#ffffff",
             activebackground="#a371f7",
             relief="flat",
-            padx=10,
-            pady=6,
+            padx=6,
+            pady=5,
             command=lambda: self.run_specific_task("inv_to_merchant")
-        ).pack(side=tk.LEFT, padx=(0, 8))
+        )
+        self.btn_quick_i2n.pack(side=tk.LEFT, padx=(0, 4), fill=tk.X, expand=True)
 
-        tk.Button(
+        self.btn_quick_popup = tk.Button(
             q_btn_bar,
-            text=f"🛡️ Tutup Popup Storage [{pop_hk}]",
-            font=("Segoe UI", 9, "bold"),
+            text=f"🛡️ Tutup Popup [{pop_hk}]",
+            font=("Segoe UI", 8, "bold"),
             bg="#d29922",
             fg="#0d1117",
             activebackground="#e3b341",
             relief="flat",
-            padx=10,
-            pady=6,
+            padx=6,
+            pady=5,
             command=lambda: self.run_specific_task("dismiss_popup")
-        ).pack(side=tk.LEFT)
+        )
+        self.btn_quick_popup.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         log_frame = tk.LabelFrame(container, text=" Aktivitas / Log Eksekusi ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=8, pady=8)
         log_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -1826,6 +1910,38 @@ class FarmerGUI(tk.Tk):
             e.grid(row=i, column=1, sticky=tk.W, pady=6)
             self.entries[(sec, key)] = e
 
+        # Hotkeys Configuration Box
+        hk_box = tk.LabelFrame(container, text=" ⌨️ Pengaturan Shortcut / Global Hotkeys ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
+        hk_box.pack(fill=tk.X, pady=(15, 0))
+
+        tk.Label(
+            hk_box,
+            text="Ganti tombol shortcut di bawah ini jika menggunakan Remote Desktop (AnyDesk/TeamViewer/RDP):",
+            bg="#222428",
+            fg="#8b949e",
+            font=("Segoe UI", 8)
+        ).pack(anchor=tk.W, pady=(0, 6))
+
+        hk_grid = tk.Frame(hk_box, bg="#222428")
+        hk_grid.pack(anchor=tk.W)
+
+        hk_fields = [
+            ("Mulai Makro (Start):", "start", "f11"),
+            ("Hentikan Makro (Stop):", "stop", "f12"),
+            ("Shortcut Storage -> Tas:", "storage_to_inv", "f9"),
+            ("Shortcut Tas -> NPC Merchant:", "inv_to_merchant", "f10"),
+            ("Shortcut Tutup Popup Storage:", "dismiss_popup", "f8"),
+        ]
+
+        self.hk_entries = {}
+        for idx, (label_text, hk_key, def_val) in enumerate(hk_fields):
+            tk.Label(hk_grid, text=label_text, bg="#222428", fg="#e1e2e6", font=("Segoe UI", 9)).grid(row=idx, column=0, sticky=tk.W, pady=4, padx=(0, 15))
+            cur_val = self.config.get("hotkeys", hk_key, def_val)
+            e = tk.Entry(hk_grid, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=14, font=("Segoe UI", 9))
+            e.insert(0, str(cur_val))
+            e.grid(row=idx, column=1, sticky=tk.W, pady=4)
+            self.hk_entries[hk_key] = e
+
         tk.Button(
             container,
             text="💾 Simpan Pengaturan",
@@ -1869,6 +1985,8 @@ class FarmerGUI(tk.Tk):
         info_box = tk.LabelFrame(container, text=f" ℹ️ Informasi Aplikasi ({APP_VERSION}) ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
         info_box.pack(fill=tk.X, pady=(15, 0))
 
+        start_k = self.config.get("hotkeys", "start", "f11").upper()
+        stop_k = self.config.get("hotkeys", "stop", "f12").upper()
         s2i_k = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
         i2n_k = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
         pop_k = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
@@ -1876,13 +1994,14 @@ class FarmerGUI(tk.Tk):
         info_text = (
             f"TantraFarmer Macro Versi: {APP_VERSION}\n"
             f"Daftar Global Shortcut Aktif:\n"
-            f"  • [F11]        : Jalankan Macro (Sesuai mode yang dipilih di Dashboard)\n"
-            f"  • [F12]        : Hentikan / Stop Macro\n"
+            f"  • [{start_k}]        : Jalankan Macro (Sesuai mode yang dipilih di Dashboard)\n"
+            f"  • [{stop_k}]        : Hentikan / Stop Macro\n"
             f"  • [{s2i_k}]         : Langsung Tarik Item dari Storage ke Tas (Storage -> Inventory)\n"
             f"  • [{i2n_k}]        : Langsung Jual Item dari Tas ke NPC Merchant (Inventory -> NPC)\n"
             f"  • [{pop_k}]         : Tutup Popup Modal Storage (Notice, Quiz, Raffle, Lucky Number)"
         )
-        tk.Label(info_box, text=info_text, bg="#222428", fg="#c9d1d9", font=("Segoe UI", 9), justify=tk.LEFT).pack(anchor=tk.W)
+        self.lbl_info_shortcuts = tk.Label(info_box, text=info_text, bg="#222428", fg="#c9d1d9", font=("Segoe UI", 9), justify=tk.LEFT)
+        self.lbl_info_shortcuts.pack(anchor=tk.W)
 
         btn_info_row = tk.Frame(info_box, bg="#222428")
         btn_info_row.pack(anchor=tk.W, pady=(8, 0))
@@ -1932,8 +2051,19 @@ class FarmerGUI(tk.Tk):
                 else:
                     val = int(val_str)
                 self.config.set(sec, key, val)
+
+            # Simpan Shortcut Keyboard
+            if hasattr(self, "hk_entries"):
+                if "hotkeys" not in self.config.data:
+                    self.config.data["hotkeys"] = {}
+                for hk_key, entry in self.hk_entries.items():
+                    val = entry.get().strip().lower()
+                    if val:
+                        self.config.data["hotkeys"][hk_key] = val
+                self._setup_hotkeys()
+
             self.config.save()
-            messagebox.showinfo("Sukses", "Pengaturan berhasil disimpan!")
+            messagebox.showinfo("Sukses", "Pengaturan kecepatan dan shortcut berhasil disimpan!")
         except Exception as e:
             messagebox.showerror("Error", f"Gagal menyimpan: {e}")
 
@@ -1962,6 +2092,11 @@ class FarmerGUI(tk.Tk):
     def _setup_hotkeys(self):
         if HAS_KEYBOARD and sys.platform == "win32":
             try:
+                try:
+                    keyboard.unhook_all_hotkeys()
+                except Exception:
+                    pass
+
                 start_hk = self.config.get("hotkeys", "start", "f11")
                 stop_hk = self.config.get("hotkeys", "stop", "f12")
                 abort_hk = self.config.get("hotkeys", "emergency_abort", None)
@@ -1969,20 +2104,57 @@ class FarmerGUI(tk.Tk):
                 i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10")
                 pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8")
 
-                keyboard.add_hotkey(start_hk, lambda: self.after(0, self.start_macro))
-                keyboard.add_hotkey(stop_hk, lambda: self.after(0, self.stop_macro))
+                if start_hk:
+                    keyboard.add_hotkey(start_hk, lambda: self.after(0, self.start_macro))
+                if stop_hk:
+                    keyboard.add_hotkey(stop_hk, lambda: self.after(0, self.stop_macro))
                 if abort_hk and abort_hk.lower() not in ["esc", "escape"]:
                     keyboard.add_hotkey(abort_hk, lambda: self.after(0, self.stop_macro))
-                keyboard.add_hotkey(s2i_hk, lambda: self.after(0, lambda: self.run_specific_task("storage_to_inv")))
-                keyboard.add_hotkey(i2n_hk, lambda: self.after(0, lambda: self.run_specific_task("inv_to_merchant")))
-                keyboard.add_hotkey(pop_hk, lambda: self.after(0, lambda: self.run_specific_task("dismiss_popup")))
+                if s2i_hk:
+                    keyboard.add_hotkey(s2i_hk, lambda: self.after(0, lambda: self.run_specific_task("storage_to_inv")))
+                if i2n_hk:
+                    keyboard.add_hotkey(i2n_hk, lambda: self.after(0, lambda: self.run_specific_task("inv_to_merchant")))
+                if pop_hk:
+                    keyboard.add_hotkey(pop_hk, lambda: self.after(0, lambda: self.run_specific_task("dismiss_popup")))
 
                 self.append_log(
                     f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), "
                     f"{s2i_hk.upper()} (Storage->Tas), {i2n_hk.upper()} (Tas->NPC), {pop_hk.upper()} (Tutup Popup)."
                 )
+                self._update_hotkey_labels()
             except Exception as e:
                 self.append_log(f"Warning: Failed to hook global keyboard hotkeys: {e}")
+
+    def _update_hotkey_labels(self):
+        start_hk = self.config.get("hotkeys", "start", "f11").upper()
+        stop_hk = self.config.get("hotkeys", "stop", "f12").upper()
+        s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
+        i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
+        pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
+
+        if hasattr(self, "status_badge") and not getattr(self, "is_character_dead", False) and not self.bot.is_running:
+            self.status_badge.config(text=f"IDLE ({start_hk} | {stop_hk})")
+        if hasattr(self, "btn_start"):
+            self.btn_start.config(text=f"▶ MULAI ({start_hk})")
+        if hasattr(self, "btn_stop"):
+            self.btn_stop.config(text=f"⏹ STOP ({stop_hk})")
+        if hasattr(self, "btn_quick_s2i"):
+            self.btn_quick_s2i.config(text=f"📦 Tarik Storage [{s2i_hk}]")
+        if hasattr(self, "btn_quick_i2n"):
+            self.btn_quick_i2n.config(text=f"💰 Jual NPC [{i2n_hk}]")
+        if hasattr(self, "btn_quick_popup"):
+            self.btn_quick_popup.config(text=f"🛡️ Tutup Popup [{pop_hk}]")
+        if hasattr(self, "lbl_info_shortcuts"):
+            info_text = (
+                f"TantraFarmer Macro Versi: {APP_VERSION}\n"
+                f"Daftar Global Shortcut Aktif:\n"
+                f"  • [{start_hk}]        : Jalankan Macro (Sesuai mode yang dipilih di Dashboard)\n"
+                f"  • [{stop_hk}]        : Hentikan / Stop Macro\n"
+                f"  • [{s2i_hk}]         : Langsung Tarik Item dari Storage ke Tas (Storage -> Inventory)\n"
+                f"  • [{i2n_hk}]        : Langsung Jual Item dari Tas ke NPC Merchant (Inventory -> NPC)\n"
+                f"  • [{pop_hk}]         : Tutup Popup Modal Storage (Notice, Quiz, Raffle, Lucky Number)"
+            )
+            self.lbl_info_shortcuts.config(text=info_text)
 
     def append_log(self, text: str):
         def _append():
@@ -2159,6 +2331,7 @@ class FarmerGUI(tk.Tk):
         if self.bot.is_running:
             return
 
+        self.is_character_dead = False
         self._apply_skill_gui_to_config(save_to_disk=False)
         self.bot.input.reset_abort()
         mode = self.selected_mode.get()
@@ -2183,12 +2356,11 @@ class FarmerGUI(tk.Tk):
                             now = time.time()
                             if now - last_death_check >= 1.5:
                                 last_death_check = now
-                                if self.wm.is_foreground():
-                                    client_img = self.screen.capture_client()
-                                    if self.matcher.detect_death_popup(client_img):
-                                        self.append_log("🚨 [SAFETY STOP] Karakter mati terdeteksi! Menghentikan Auto Skill.")
-                                        self._on_character_death()
-                                        break
+                                client_img = self.screen.capture_client()
+                                if self.matcher.detect_death_popup(client_img):
+                                    self.append_log("🚨 [SAFETY STOP] Karakter mati terdeteksi! Menghentikan Auto Skill.")
+                                    self._on_character_death()
+                                    break
                             time.sleep(0.2)
                     finally:
                         self.bot.skills.stop()
@@ -2207,7 +2379,8 @@ class FarmerGUI(tk.Tk):
 
     def run_specific_task(self, task_name: str):
         if self.bot.is_running:
-            self.append_log("Peringatan: Macro sedang berjalan. Tekan F12 terlebih dahulu untuk menghentikan.")
+            stop_k = self.config.get("hotkeys", "stop", "f12").upper()
+            self.append_log(f"Peringatan: Macro sedang berjalan. Tekan {stop_k} terlebih dahulu untuk menghentikan.")
             return
 
         self._apply_skill_gui_to_config(save_to_disk=False)
@@ -2240,18 +2413,28 @@ class FarmerGUI(tk.Tk):
         self._on_macro_finished()
 
     def _on_macro_finished(self):
-        self.status_badge.config(text="IDLE (F11 Mulai | F12 Stop)", fg="#3fb950", bg="#161b22")
+        if getattr(self, "is_character_dead", False):
+            self.btn_start.config(state=tk.NORMAL)
+            self.btn_stop.config(state=tk.NORMAL)
+            return
+
+        start_hk = self.config.get("hotkeys", "start", "f11").upper()
+        stop_hk = self.config.get("hotkeys", "stop", "f12").upper()
+        self.status_badge.config(text=f"IDLE ({start_hk} | {stop_hk})", fg="#3fb950", bg="#161b22")
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL)
 
     def _on_character_death(self):
+        self.is_character_dead = True
         def _update():
-            self.stop_macro()
+            self.bot.stop()
             self.status_badge.config(
                 text="🚨 KARAKTER MATI (Makro Dihentikan)",
                 bg="#da3633",
                 fg="#ffffff"
             )
+            self.btn_start.config(state=tk.NORMAL)
+            self.btn_stop.config(state=tk.NORMAL)
             self.append_log("🚨 [PERINGATAN] Makro dihentikan otomatis karena mendeteksi popup respawn (Karakter Telah Mati)!")
             try:
                 import winsound
