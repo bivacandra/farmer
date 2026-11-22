@@ -455,12 +455,36 @@ class FarmerBot:
                     self.log(f"Menjual Slot #{slot_idx} ke Toko Merchant...")
                     self.input.drag_and_drop(slot_cx, slot_cy, drop_x, drop_y)
 
-                    # Langsung tekan Enter untuk konfirmasi penjualan
+                    # Tekan Enter untuk konfirmasi penjualan
                     time.sleep(0.2)
                     self.log(f"Menekan Enter untuk konfirmasi penjualan Slot #{slot_idx}...")
                     self.input.press_key("enter")
+
+                    # Tunggu sampai item di slot tas benar-benar terjual (slot menjadi kosong)
+                    sell_timeout = float(self.config.get("delays", "sell_wait_timeout_sec", 2.0))
+                    sell_post_delay = float(self.config.get("delays", "sell_post_delay_sec", 0.35))
+                    start_wait = time.time()
+                    slot_cleared = False
+
+                    while (time.time() - start_wait) < sell_timeout:
+                        if not self.is_running:
+                            return
+                        time.sleep(0.1)
+                        check_img = self.screen.capture_client()
+                        check_slot = self.get_inventory_slot_crop(check_img, c, r)
+                        if self.matcher.is_slot_empty(check_slot):
+                            slot_cleared = True
+                            break
+
                     sold_count += 1
-                    time.sleep(0.25)
+                    if slot_cleared:
+                        elapsed = time.time() - start_wait
+                        self.log(f"Slot #{slot_idx} terkonfirmasi terjual dalam {elapsed:.2f}s (slot telah kosong).")
+                    else:
+                        self.log(f"Perhatian: Timeout ({sell_timeout:.1f}s) menunggu slot #{slot_idx} kosong, lanjut...")
+
+                    # Jeda stabilisasi kursor sebelum memproses slot berikutnya
+                    time.sleep(sell_post_delay)
 
             self.log(f"Selesai! Total item berhasil dijual: {sold_count}.")
 

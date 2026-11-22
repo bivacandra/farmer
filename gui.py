@@ -1889,6 +1889,8 @@ class FarmerGUI(tk.Tk):
             ("Durasi Drag Mouse (detik):", "delays", "drag_duration_sec"),
             ("Jeda Hover Tooltip NPC (detik):", "delays", "hover_delay_sec"),
             ("Timeout Pop-up Konfirmasi Jual (detik):", "delays", "popup_wait_timeout_sec"),
+            ("Timeout Tunggu Item Terjual (detik):", "delays", "sell_wait_timeout_sec"),
+            ("Jeda Pasca Jual NPC (detik):", "delays", "sell_post_delay_sec"),
             ("Sensitivitas Deteksi Kosong (StdDev):", "rules", "empty_slot_threshold"),
             ("Threshold Match Blacklist Jual (0.5 - 1.0):", "rules", "sell_whitelist_match_threshold"),
             ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
@@ -1905,6 +1907,10 @@ class FarmerGUI(tk.Tk):
                 val = self.config.get("rules", "sell_whitelist_match_threshold", 0.50)
             if val is None and key == "match_threshold":
                 val = 0.70
+            if val is None and key == "sell_wait_timeout_sec":
+                val = 2.0
+            if val is None and key == "sell_post_delay_sec":
+                val = 0.35
             e = tk.Entry(grid, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", width=12)
             e.insert(0, str(val))
             e.grid(row=i, column=1, sticky=tk.W, pady=6)

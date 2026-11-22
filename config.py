@@ -33,7 +33,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "click_delay_sec": 0.1,
         "popup_wait_timeout_sec": 2.0,
         "post_action_delay_sec": 0.25,
-        "hunt_loop_interval_sec": 1.5
+        "hunt_loop_interval_sec": 1.5,
+        "sell_wait_timeout_sec": 2.0,
+        "sell_post_delay_sec": 0.35
     },
     "inventory": {
         "x1": 704,
