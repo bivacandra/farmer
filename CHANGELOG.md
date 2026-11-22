@@ -5,6 +5,17 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.1.1] - 2026-11-22
+
+### 🛠️ Fixed & Improved
+- **Jeda dan Verifikasi Slot Kosong saat Penjualan ke NPC Merchant (Issue #11)**:
+  - Memperbaiki bug visual dan desync item hilang di kursor akibat proses penjualan yang terlalu cepat.
+  - Setelah menekan `Enter` untuk konfirmasi penjualan, bot kini secara aktif memverifikasi citra slot inventaris (`is_slot_empty`) hingga item benar-benar terkonfirmasi lenyap dari tas sebelum berpindah ke slot berikutnya.
+  - Menambahkan safety timeout (`sell_wait_timeout_sec`, default 2.0s) agar bot tidak macet jika koneksi server game lag.
+  - Menambahkan jeda stabilisasi kursor pasca jual (`sell_post_delay_sec`, default 0.35s) yang dapat dikustomisasi di Tab Pengaturan.
+
+---
+
 ## [v1.1.0] - 2026-11-22
 
 ### 🟢 Added & Improved

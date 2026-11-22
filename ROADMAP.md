@@ -19,7 +19,11 @@ Bagi pengguna atau tester yang menemukan kendala (*bug*) atau memiliki usulan fi
 
 ## 🚀 Rencana Rilis Mendatang
 
-### 🎯 Versi Terbaru (v1.1.0 - Released)
+### 🎯 Versi Terbaru (v1.1.1 - Released)
+- [x] **Jeda dan Verifikasi Slot Kosong saat Penjualan ke NPC Merchant (Issue #11)**:
+  - Verifikasi slot inventaris kosong pasca-Enter konfirmasi jual dan jeda stabilisasi kursor mencegah bug item hilang di kursor.
+
+### 🎯 Versi Sebelumnya (v1.1.0)
 - [x] **Mode Compact untuk Layar Resolusi 1366x768 & Game 800x600 (Issue #8)**:
   - Toggle satu-klik Mode Compact (~520px) dengan auto-snap ke samping game dan layout responsif tanpa tumpang tindih.
 - [x] **Kustomisasi Shortcut Keyboard Semua Fitur (Issue #9)**:
