@@ -1879,14 +1879,81 @@ class FarmerGUI(tk.Tk):
         container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(container, text="Konfigurasi Kecepatan & Delay (NFR-1)", font=("Segoe UI", 11, "bold"), bg="#222428", fg="#58a6ff").pack(anchor=tk.W, pady=(0, 10))
+        tk.Label(container, text="Konfigurasi Kecepatan & Delay (NFR-1)", font=("Segoe UI", 11, "bold"), bg="#222428", fg="#58a6ff").pack(anchor=tk.W, pady=(0, 6))
 
-        grid = tk.Frame(container, bg="#222428")
-        grid.pack(fill=tk.X, pady=5)
+        # Slider Box: Pengaturan Kecepatan Pergerakan Mouse (Issue #13)
+        speed_box = tk.LabelFrame(
+            container,
+            text=" ⚡ Kecepatan Pergerakan Mouse & Pemindahan Item ",
+            bg="#222428",
+            fg="#58a6ff",
+            font=("Segoe UI", 10, "bold"),
+            padx=12,
+            pady=10
+        )
+        speed_box.pack(fill=tk.X, pady=(0, 12))
+
+        tk.Label(
+            speed_box,
+            text="Geser ke kiri untuk pergerakan pelan (stabil), atau ke kanan untuk kecepatan maksimal (hingga 10x lebih cepat):",
+            bg="#222428",
+            fg="#8b949e",
+            font=("Segoe UI", 8),
+            justify=tk.LEFT
+        ).pack(anchor=tk.W, pady=(0, 6))
+
+        slider_frame = tk.Frame(speed_box, bg="#222428")
+        slider_frame.pack(fill=tk.X, pady=2)
+
+        tk.Label(slider_frame, text="🐢 Pelan", font=("Segoe UI", 9, "bold"), bg="#222428", fg="#8b949e").pack(side=tk.LEFT, padx=(0, 10))
+
+        cur_sp = int(self.config.get("delays", "speed_level", 5))
+
+        self.speed_scale = tk.Scale(
+            slider_frame,
+            from_=1,
+            to=10,
+            orient=tk.HORIZONTAL,
+            bg="#161b22",
+            fg="#58a6ff",
+            troughcolor="#0d1117",
+            activebackground="#1f6feb",
+            highlightthickness=0,
+            font=("Segoe UI", 8),
+            command=self._on_speed_slider_change
+        )
+        self.speed_scale.set(cur_sp)
+        self.speed_scale.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        tk.Label(slider_frame, text="⚡ 10x Maksimal", font=("Segoe UI", 9, "bold"), bg="#222428", fg="#3fb950").pack(side=tk.LEFT, padx=(10, 0))
+
+        self.speed_status_lbl = tk.Label(
+            speed_box,
+            text="",
+            bg="#222428",
+            fg="#3fb950",
+            font=("Segoe UI", 9, "bold")
+        )
+        self.speed_status_lbl.pack(anchor=tk.W, pady=(6, 0))
+        self._update_speed_label(cur_sp)
+
+        # Advanced Fields Box
+        adv_box = tk.LabelFrame(
+            container,
+            text=" ⚙️ Pengaturan Delay & Parameter Tambahan ",
+            bg="#222428",
+            fg="#8b949e",
+            font=("Segoe UI", 10, "bold"),
+            padx=12,
+            pady=8
+        )
+        adv_box.pack(fill=tk.X, pady=(0, 5))
+
+        grid = tk.Frame(adv_box, bg="#222428")
+        grid.pack(fill=tk.X, pady=4)
 
         self.entries = {}
         fields = [
-            ("Durasi Drag Mouse (detik):", "delays", "drag_duration_sec"),
             ("Jeda Hover Tooltip NPC (detik):", "delays", "hover_delay_sec"),
             ("Timeout Pop-up Konfirmasi Jual (detik):", "delays", "popup_wait_timeout_sec"),
             ("Timeout Tunggu Item Terjual (detik):", "delays", "sell_wait_timeout_sec"),
@@ -2048,6 +2115,30 @@ class FarmerGUI(tk.Tk):
             command=lambda: webbrowser.open("https://github.com/bivacandra/farmer/issues")
         ).pack(side=tk.LEFT)
 
+    def _on_speed_slider_change(self, val):
+        try:
+            sp = int(val)
+        except Exception:
+            sp = 5
+        self._update_speed_label(sp)
+
+    def _update_speed_label(self, sp: int):
+        if not hasattr(self, "speed_status_lbl"):
+            return
+        desc_map = {
+            1: "Level 1: 🐢 Paling Pelan (~0.8s/item) - Sangat stabil, aman untuk PC/koneksi berat",
+            2: "Level 2: 🐢 Pelan (~0.65s/item)",
+            3: "Level 3: 🟢 Agak Pelan (~0.5s/item)",
+            4: "Level 4: 🟢 Normal Ringan (~0.4s/item)",
+            5: "Level 5: ⚖️ Standar / Seimbang (~0.35s/item) - Rekomendasi bawaan",
+            6: "Level 6: ⚡ Cepat (~0.25s/item)",
+            7: "Level 7: ⚡ Sangat Cepat (~0.18s/item)",
+            8: "Level 8: 🚀 Super Cepat (~0.12s/item)",
+            9: "Level 9: 🚀 Ultra Cepat (~0.09s/item)",
+            10: "Level 10: ⚡⚡ MAKSIMAL 10X (~0.05s/item) - Kecepatan transfer item tertinggi!"
+        }
+        self.speed_status_lbl.config(text=desc_map.get(sp, f"Level {sp}"))
+
     def save_settings(self):
         try:
             for (sec, key), e in self.entries.items():
@@ -2057,6 +2148,15 @@ class FarmerGUI(tk.Tk):
                 else:
                     val = int(val_str)
                 self.config.set(sec, key, val)
+
+            # Simpan Slider Kecepatan Mouse (Issue #13)
+            if hasattr(self, "speed_scale"):
+                sp = int(self.speed_scale.get())
+                self.config.set("delays", "speed_level", sp)
+                drag_dur = round(max(0.02, 0.35 - (sp - 1) * 0.036), 3)
+                post_dur = round(max(0.02, 0.25 - (sp - 1) * 0.025), 3)
+                self.config.set("delays", "drag_duration_sec", drag_dur)
+                self.config.set("delays", "post_action_delay_sec", post_dur)
 
             # Simpan Shortcut Keyboard
             if hasattr(self, "hk_entries"):
@@ -2095,7 +2195,7 @@ class FarmerGUI(tk.Tk):
         footer.pack(fill=tk.X, side=tk.BOTTOM)
         tk.Label(footer, text=f"Antigravity Tantra Farmer {APP_VERSION} • Resolution Independent • DirectInput Engine", font=("Segoe UI", 8), bg="#161b22", fg="#8b949e").pack(side=tk.LEFT)
 
-    def _setup_hotkeys(self):
+    def _setup_hotkeys(self, verbose: bool = True):
         if HAS_KEYBOARD and sys.platform == "win32":
             try:
                 try:
@@ -2117,19 +2217,21 @@ class FarmerGUI(tk.Tk):
                 if abort_hk and abort_hk.lower() not in ["esc", "escape"]:
                     keyboard.add_hotkey(abort_hk, lambda: self.after(0, self.stop_macro))
                 if s2i_hk:
-                    keyboard.add_hotkey(s2i_hk, lambda: self.after(0, lambda: self.run_specific_task("storage_to_inv")))
+                    keyboard.add_hotkey(s2i_hk, lambda: self.after(0, self.run_specific_task, "storage_to_inv"))
                 if i2n_hk:
-                    keyboard.add_hotkey(i2n_hk, lambda: self.after(0, lambda: self.run_specific_task("inv_to_merchant")))
+                    keyboard.add_hotkey(i2n_hk, lambda: self.after(0, self.run_specific_task, "inv_to_merchant"))
                 if pop_hk:
-                    keyboard.add_hotkey(pop_hk, lambda: self.after(0, lambda: self.run_specific_task("dismiss_popup")))
+                    keyboard.add_hotkey(pop_hk, lambda: self.after(0, self.run_specific_task, "dismiss_popup"))
 
-                self.append_log(
-                    f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), "
-                    f"{s2i_hk.upper()} (Storage->Tas), {i2n_hk.upper()} (Tas->NPC), {pop_hk.upper()} (Tutup Popup)."
-                )
+                if verbose:
+                    self.append_log(
+                        f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), "
+                        f"{s2i_hk.upper()} (Storage->Tas), {i2n_hk.upper()} (Tas->NPC), {pop_hk.upper()} (Tutup Popup)."
+                    )
                 self._update_hotkey_labels()
             except Exception as e:
-                self.append_log(f"Warning: Failed to hook global keyboard hotkeys: {e}")
+                if verbose:
+                    self.append_log(f"Warning: Failed to hook global keyboard hotkeys: {e}")
 
     def _update_hotkey_labels(self):
         start_hk = self.config.get("hotkeys", "start", "f11").upper()
@@ -2385,9 +2487,12 @@ class FarmerGUI(tk.Tk):
 
     def run_specific_task(self, task_name: str):
         if self.bot.is_running:
-            stop_k = self.config.get("hotkeys", "stop", "f12").upper()
-            self.append_log(f"Peringatan: Macro sedang berjalan. Tekan {stop_k} terlebih dahulu untuk menghentikan.")
-            return
+            if hasattr(self, 'worker_thread') and self.worker_thread and not self.worker_thread.is_alive():
+                self.bot.is_running = False
+            else:
+                stop_k = self.config.get("hotkeys", "stop", "f12").upper()
+                self.append_log(f"Peringatan: Macro sedang berjalan. Tekan {stop_k} terlebih dahulu untuk menghentikan.")
+                return
 
         self._apply_skill_gui_to_config(save_to_disk=False)
         self.bot.input.reset_abort()
@@ -2417,6 +2522,7 @@ class FarmerGUI(tk.Tk):
     def stop_macro(self):
         self.bot.stop()
         self._on_macro_finished()
+        self._setup_hotkeys(verbose=False)
 
     def _on_macro_finished(self):
         if getattr(self, "is_character_dead", False):
@@ -2429,6 +2535,8 @@ class FarmerGUI(tk.Tk):
         self.status_badge.config(text=f"IDLE ({start_hk} | {stop_hk})", fg="#3fb950", bg="#161b22")
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL)
+        # Re-register global hotkeys to refresh hooks dropped by Windows during active simulation (Issue #12)
+        self._setup_hotkeys(verbose=False)
 
     def _on_character_death(self):
         self.is_character_dead = True

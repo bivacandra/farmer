@@ -101,13 +101,24 @@ class InputController:
 
         if duration is None:
             duration = self.delays.get("drag_duration_sec", 0.25)
+            # Adapt duration according to speed_level if configured
+            speed_lvl = self.config.get("delays", "speed_level", None)
+            if speed_lvl is not None:
+                sp = max(1, min(10, int(speed_lvl)))
+                duration = max(0.02, 0.35 - (sp - 1) * 0.036)
+
+        # Dynamic settle delay based on speed level (1=0.07s, 5=0.04s, 10=0.008s -> ~10x speed boost)
+        speed_lvl = self.config.get("delays", "speed_level", 5)
+        sp = max(1, min(10, int(speed_lvl)))
+        settle_delay = max(0.008, 0.07 - (sp - 1) * 0.0068)
+        post_delay = self.delays.get("post_action_delay_sec", max(0.02, 0.25 - (sp - 1) * 0.025))
 
         start_abs_x, start_abs_y = self.wm.to_screen_coords(start_x, start_y)
         end_abs_x, end_abs_y = self.wm.to_screen_coords(end_x, end_y)
 
         # 1. Move to start position
         self.move_to(start_x, start_y)
-        self._sleep(0.08)
+        self._sleep(settle_delay)
 
         # 2. Mouse Down (FR-1)
         if sys.platform == "win32":
@@ -118,10 +129,10 @@ class InputController:
             pydirectinput.mouseDown()
         elif HAS_PYAUTOGUI:
             pyautogui.mouseDown()
-        self._sleep(0.08)
+        self._sleep(settle_delay)
 
         # 3. Smooth Mouse Move while holding down
-        steps = max(8, int(duration * 60))
+        steps = max(2, int(duration * 60))
         dt = duration / steps
         for i in range(1, steps + 1):
             if self.is_aborted:
@@ -142,9 +153,10 @@ class InputController:
                 pydirectinput.moveTo(cur_x, cur_y)
             elif HAS_PYAUTOGUI:
                 pyautogui.moveTo(cur_x, cur_y)
-            time.sleep(dt)
+            if dt > 0.001:
+                time.sleep(dt)
 
-        self._sleep(0.08)
+        self._sleep(settle_delay)
 
         # 4. Mouse Up at destination (FR-1)
         if sys.platform == "win32":
@@ -156,7 +168,7 @@ class InputController:
         elif HAS_PYAUTOGUI:
             pyautogui.mouseUp()
 
-        self._sleep(self.delays.get("post_action_delay_sec", 0.25))
+        self._sleep(post_delay)
 
     def press_key(self, key_name: str) -> None:
         """Sends key press (e.g. 'enter', 'esc', 'f1', '1')."""

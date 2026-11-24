@@ -28,6 +28,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "password_hash": "1f406ec232c5a4de95539988e5f9c1a1f6c632544f08ff97f7eb26400102a1de"
     },
     "delays": {
+        "speed_level": 5,
         "hover_delay_sec": 0.35,
         "drag_duration_sec": 0.25,
         "click_delay_sec": 0.1,
