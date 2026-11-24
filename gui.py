@@ -227,6 +227,34 @@ class FarmerGUI(tk.Tk):
         # Background update check from GitHub Releases
         self.after(1000, lambda: self._check_update_in_background(silent=True))
 
+        # Check if running in a temporary or unextracted ZIP folder
+        self.after(500, self._check_temp_environment)
+
+    def _check_temp_environment(self):
+        if not getattr(sys, "frozen", False):
+            return
+
+        exe_path = Path(sys.executable).resolve()
+        path_str = str(exe_path).lower()
+        temp_dir = os.environ.get("TEMP", "").lower()
+        tmp_dir = os.environ.get("TMP", "").lower()
+
+        is_in_temp = (
+            (temp_dir and temp_dir in path_str)
+            or (tmp_dir and tmp_dir in path_str)
+            or "\\appdata\\local\\temp\\" in path_str
+            or "temp1_" in path_str
+        )
+
+        if is_in_temp:
+            messagebox.showwarning(
+                "Peringatan: Jalankan dari Folder Ekstrak",
+                "Aplikasi terdeteksi berjalan langsung dari dalam folder sementara atau preview ZIP.\n\n"
+                "Agar pengaturan dan auto-update dapat tersimpan secara permanen,\n"
+                "silakan ekstrak seluruh isi file ZIP ke folder tetap (seperti Desktop atau Folder Game) "
+                "sebelum menjalankan makro."
+            )
+
     def _auto_detect_game_window(self):
         found = self.wm.find_window()
         if found:
@@ -2687,7 +2715,10 @@ class FarmerGUI(tk.Tk):
 
                     dlg.after(0, update_ui)
 
-                target_dir = self.config.base_dir
+                if getattr(sys, "frozen", False):
+                    target_dir = Path(sys.executable).resolve().parent
+                else:
+                    target_dir = self.config.base_dir
                 new_file = download_update(url, target_dir, progress_callback=progress_cb, cancel_flag=lambda: is_cancelled)
 
                 if is_cancelled:

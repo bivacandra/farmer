@@ -5,6 +5,28 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.1.2] - 2026-11-24
+
+### 🟢 Added & Improved
+- **UI Slider Kecepatan Mouse & Peningkatan Kecepatan Hingga 10x (Issue #13)**:
+  - Mengganti pengisian angka desimal manual yang membingungkan dengan komponen Slider Geser Horizontal (`tk.Scale`) 10 level kecepatan: dari *Level 1 (Pelan & Stabil)* hingga *Level 10 (Maksimal 10x Cepat)*.
+  - Menjadikan transisi jeda kursor (*settle delay*, durasi *drag*, dan jeda *post-action*) adaptif proporsional terhadap slider, mempercepat pemindahan item hingga ~`0.05` detik per item pada kecepatan maksimal.
+- **Installer Windows Resmi (`TantraFarmer-Setup.exe`)**:
+  - Menghadirkan installer otomatis via Inno Setup lengkap dengan pembuatan icon shortcut di Desktop dan Start Menu.
+  - Menjamin path instalasi tetap permanen di PC pengguna, sehingga setiap pembaruan versi via auto-update selalu tepat sasaran.
+- **Deteksi Folder Sementara (Unextracted ZIP Guard)**:
+  - Menambahkan dialog peringatan jika pengguna menjalankan makro langsung dari dalam preview ZIP atau folder sementara Windows (`Temp`), mengingatkan pengguna untuk mengekstrak folder terlebih dahulu agar pengaturan dan pembaruan versi tersimpan permanen.
+
+### 🛠️ Fixed
+- **Penyegaran Shortcut Keyboard Otomatis (*Auto Re-hook*) (Issue #12)**:
+  - Memperbaiki masalah shortcut keyboard (seperti `F9`, `F10`) yang macet / tidak merespon setelah Auto Hunt Loop dihentikan.
+  - Aplikasi secara otomatis mendaftarkan ulang seluruh low-level keyboard hook (`WH_KEYBOARD_LL`) di setiap kali makro selesai atau dihentikan.
+  - Perbaikan closure thread callback pada shortcut untuk menghindari hambatan eksekusi tugas di antarmuka Tkinter.
+- **Keandalan Skrip Auto-Updater**:
+  - Skrip batch updater kini menggunakan *Absolute Path* lengkap dari executable yang sedang aktif dan perintah jeda non-interaktif aman (`ping 127.0.0.1`) agar penggantian file executable tidak gagal saat dijalankan di latar belakang (*detached process*).
+
+---
+
 ## [v1.1.1] - 2026-11-22
 
 ### 🛠️ Fixed & Improved

@@ -19,7 +19,15 @@ Bagi pengguna atau tester yang menemukan kendala (*bug*) atau memiliki usulan fi
 
 ## 🚀 Rencana Rilis Mendatang
 
-### 🎯 Versi Terbaru (v1.1.1 - Released)
+### 🎯 Versi Terbaru (v1.1.2 - Released)
+- [x] **Penyegaran Shortcut Keyboard Otomatis (*Auto Re-hook*) (Issue #12)**:
+  - Mencegah shortcut macet setelah Auto Hunt Loop dengan auto re-registration hook keyboard saat makro berhenti.
+- [x] **UI Slider Kecepatan Mouse & Peningkatan Kecepatan 10x (Issue #13)**:
+  - Slider horizontal 10 level kecepatan dari pelan/stabil hingga maksimal 10x lebih cepat.
+- [x] **Installer Windows Resmi & Pembaruan Absolute Path Auto-Updater**:
+  - Disediakan `TantraFarmer-Setup.exe` dengan shortcut Desktop permanen dan peringatan jika menjalankan dari dalam file ZIP.
+
+### 🎯 Versi Sebelumnya (v1.1.1)
 - [x] **Jeda dan Verifikasi Slot Kosong saat Penjualan ke NPC Merchant (Issue #11)**:
   - Verifikasi slot inventaris kosong pasca-Enter konfirmasi jual dan jeda stabilisasi kursor mencegah bug item hilang di kursor.
 

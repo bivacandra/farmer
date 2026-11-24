@@ -55,13 +55,33 @@ jobs:
           }
           Write-Output "tag=$tag" >> $env:GITHUB_OUTPUT
 
+      - name: Build Inno Setup Installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          }
+          & $iscc "/DAppVersion=${{ steps.release_info.outputs.tag }}" installer.iss
+
       - name: Create GitHub Release and Upload Asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: "Tantra Farmer Macro Release ${{ steps.release_info.outputs.tag }}"
           body: |
-            ### 🚜 Tantra Farmer Macro - Standalone Release (${{ steps.release_info.outputs.tag }})
+            ### 🚜 Tantra Farmer Macro - Release (${{ steps.release_info.outputs.tag }})
+            
+            **Pilihan Download:**
+            - 📦 **`TantraFarmer-Setup.exe` (Sangat Disarankan / Installer)**:
+              - Setup instalasi otomatis dengan icon shortcut di Desktop & Start Menu.
+              - Path aplikasi permanen di PC Anda, mencegah masalah terbukanya versi lama setelah auto-update.
+            - 📁 **`TantraFarmer-Windows.zip` (Versi Portable)**:
+              - Ekstrak seluruh file zip ke folder mana saja (seperti Desktop) dan langsung jalankan `TantraFarmer.exe` tanpa perlu instalasi.
             
             **Fitur Utama:**
             - 🔐 **Password Protected**: Aplikasi diproteksi dengan password otentikasi (`Mysamsung123`).
@@ -70,12 +90,12 @@ jobs:
             - 🏹 **Auto Hunt Synchronization**: Integrasi skill berkala saat berburu.
             
             **Cara Penggunaan:**
-            1. Download file `TantraFarmer-Windows.zip` di bawah ini.
-            2. Ekstrak file zip ke folder mana saja di PC Windows Anda.
-            3. Jalankan `TantraFarmer.exe`.
-            4. Masukkan password akses (`Mysamsung123`) saat diminta.
-            5. Gunakan hotkey **F11** untuk Mulai dan **F12** untuk Berhenti.
+            1. Download `TantraFarmer-Setup.exe` dan jalankan instalasi, atau ekstrak `TantraFarmer-Windows.zip`.
+            2. Jalankan `TantraFarmer.exe`.
+            3. Masukkan password akses (`Mysamsung123`) saat diminta.
+            4. Gunakan hotkey **F11** untuk Mulai dan **F12** untuk Berhenti.
           files: |
+            dist/TantraFarmer-Setup.exe
             dist/TantraFarmer-Windows.zip
             dist/TantraFarmer.exe
         env:

@@ -134,33 +134,51 @@ def download_update(
 def apply_update_and_restart(update_file: Path) -> None:
     """
     Replaces the current executable with the new one and restarts the application.
-    Uses a temporary Windows batch file to handle process release and replacement.
+    Uses a temporary Windows batch file to handle process release and replacement
+    with full absolute paths to ensure reliability across all working directories.
     """
     if getattr(sys, "frozen", False):
         target_exe = Path(sys.executable).resolve()
     else:
         # Running in dev mode (python gui.py)
-        # In dev mode, we just simulate or launch target if exists
-        target_exe = update_file.parent / "TantraFarmer.exe"
+        target_exe = (update_file.parent / "TantraFarmer.exe").resolve()
         if not target_exe.exists():
             print(f"[Updater] Dev mode: update downloaded at {update_file}")
             return
 
+    update_abs = update_file.resolve()
+    target_abs = target_exe.resolve()
     bat_file = update_file.parent / "updater.bat"
     
+    # Uses 'ping 127.0.0.1 -n 2 > nul' instead of 'timeout'
+    # because 'timeout' crashes when executed from background/detached processes without a console window.
     bat_content = f"""@echo off
 setlocal
 echo Menyiapkan pembaruan Tantra Farmer Macro...
-timeout /t 1 /nobreak > nul
+ping 127.0.0.1 -n 2 > nul
 
+:: Tutup proses makro lama jika masih aktif
+taskkill /f /im "{target_abs.name}" > nul 2>&1
+ping 127.0.0.1 -n 2 > nul
+
+set RETRIES=0
 :RETRY
-move /y "{update_file.name}" "{target_exe.name}" > nul 2>&1
-if exist "{update_file.name}" (
-    timeout /t 1 /nobreak > nul
+set /a RETRIES+=1
+move /y "{str(update_abs)}" "{str(target_abs)}" > nul 2>&1
+if exist "{str(update_abs)}" (
+    if %RETRIES% geq 10 goto FAILED
+    ping 127.0.0.1 -n 2 > nul
     goto RETRY
 )
 
-start "" "{target_exe.name}"
+:LAUNCH
+start "" "{str(target_abs)}"
+del "%~f0"
+exit
+
+:FAILED
+echo Update gagal memindahkan file. Silakan timpa file TantraFarmer.exe secara manual.
+ping 127.0.0.1 -n 4 > nul
 del "%~f0"
 exit
 """
@@ -172,16 +190,16 @@ exit
             # DETACHED_PROCESS = 0x00000008, CREATE_NO_WINDOW = 0x08000000
             flags = 0x00000008 | 0x08000000
             subprocess.Popen(
-                ["cmd.exe", "/c", str(bat_file.name)],
-                cwd=str(update_file.parent),
+                ["cmd.exe", "/c", str(bat_file.resolve())],
+                cwd=str(update_file.parent.resolve()),
                 creationflags=flags,
                 close_fds=True
             )
         else:
             # Fallback for testing on Linux
             subprocess.Popen(
-                ["sh", "-c", f"sleep 1 && mv '{update_file}' '{target_exe}'"],
-                cwd=str(update_file.parent)
+                ["sh", "-c", f"sleep 1 && mv '{update_abs}' '{target_abs}'"],
+                cwd=str(update_file.parent.resolve())
             )
 
         # Terminate current app cleanly
