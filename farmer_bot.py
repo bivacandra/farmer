@@ -336,7 +336,7 @@ class FarmerBot:
     # =========================================================================
     # TASK 2: Storage ke Inventory (Tarik ke Slot Kosong Tas - Ga Bisa Ditumpuk)
     # =========================================================================
-    def run_storage_to_inventory(self) -> None:
+    def run_storage_to_inventory(self, keep_running: bool = False) -> int:
         self.is_running = True
         self.input.reset_abort()
         self.log("Memulai tugas: Storage ke Inventory (Wajib Drop di Slot Kosong)...")
@@ -358,7 +358,7 @@ class FarmerBot:
                 for c in range(cols):
                     if not self.is_running:
                         self.log("Proses dihentikan.")
-                        return
+                        return withdrawn_count
 
                     slot_idx = (r * cols) + c + 1
                     client_img = self.screen.capture_client()
@@ -372,7 +372,7 @@ class FarmerBot:
                     empty_inv = self.find_empty_inventory_slot(client_img)
                     if not empty_inv:
                         self.log("Inventaris Tas PENUH! Tidak ada slot kosong tersisa. Penarikan dihentikan.")
-                        return
+                        return withdrawn_count
 
                     target_inv_c, target_inv_r = empty_inv
                     dest_cx, dest_cy = self.get_inventory_slot_coords(target_inv_c, target_inv_r)
@@ -386,19 +386,23 @@ class FarmerBot:
                     time.sleep(0.3)
 
             self.log(f"Selesai! Berhasil menarik {withdrawn_count} item ke Inventaris.")
+            return withdrawn_count
 
         except InterruptedError:
             self.log("Tugas dibatalkan oleh user.")
+            return withdrawn_count
         except Exception as e:
             self.log(f"Error pada Storage ke Inventory: {e}")
+            return withdrawn_count
         finally:
-            self.is_running = False
+            if not keep_running:
+                self.is_running = False
 
     # =========================================================================
     # =========================================================================
     # TASK 3: Inventory ke NPC Merchant (Jual Item kecuali Blacklist)
     # =========================================================================
-    def run_inventory_to_npc(self) -> None:
+    def run_inventory_to_npc(self, keep_running: bool = False) -> int:
         self.is_running = True
         self.input.reset_abort()
         self.log("Memulai tugas: Penjualan Item ke NPC Merchant (Filter Blacklist Toko)...")
@@ -422,7 +426,7 @@ class FarmerBot:
                 for c in range(cols):
                     if not self.is_running:
                         self.log("Proses dihentikan.")
-                        return
+                        return sold_count
 
                     slot_idx = (r * cols) + c + 1
                     client_img = self.screen.capture_client()
@@ -468,7 +472,7 @@ class FarmerBot:
 
                     while (time.time() - start_wait) < sell_timeout:
                         if not self.is_running:
-                            return
+                            return sold_count
                         time.sleep(0.1)
                         check_img = self.screen.capture_client()
                         check_slot = self.get_inventory_slot_crop(check_img, c, r)
@@ -487,13 +491,17 @@ class FarmerBot:
                     time.sleep(sell_post_delay)
 
             self.log(f"Selesai! Total item berhasil dijual: {sold_count}.")
+            return sold_count
 
         except InterruptedError:
             self.log("Tugas dibatalkan oleh user.")
+            return sold_count
         except Exception as e:
             self.log(f"Error pada Penjualan ke NPC: {e}")
+            return sold_count
         finally:
-            self.is_running = False
+            if not keep_running:
+                self.is_running = False
 
     # =========================================================================
     # TASK 4: Auto Hunt Loop (Continuous Inventory Monitor & Auto Deposit)
@@ -653,3 +661,298 @@ class FarmerBot:
             self.skills.stop()
             self.is_running = False
             self.log("Mode Auto Hunt berhenti.")
+
+    # =========================================================================
+    # TASK 5: Full Auto Storage to Merchant Loop (Navigasi + Interaksi NPC)
+    # =========================================================================
+    def auto_align_camera(self) -> bool:
+        """
+        Secara otomatis melakukan Zoom Out maksimal dan meluruskan sudut kamera
+        antara Tradesman Abahan dan Jeweler Ashuri berbasis visual feedback.
+        """
+        self.log("🔭 [Auto Camera] Memulai auto-alignment kamera lurus...")
+        self.wm.activate_window()
+        time.sleep(0.2)
+
+        # 1. Zoom out kamera hingga maksimal (Scroll Wheel KE BAWAH di Tantra)
+        self.log("🔭 [Auto Camera] Memundurkan kamera (Full Zoom Out ke bawah)...")
+        client_w = self.config.get("window", "client_width", 800)
+        client_h = self.config.get("window", "client_height", 600)
+        center_x = client_w // 2
+        center_y = int(client_h * 0.45)
+        self.input.move_to(center_x, center_y)
+        time.sleep(0.1)
+        self.input.scroll_down(clicks=25)
+        time.sleep(0.4)
+
+        nav_cfg = self.config.get("auto_nav", {})
+        max_retries = int(nav_cfg.get("max_align_retries", 18))
+
+        # 2. Pindai sudut putaran kamera hingga tag Jeweler Ashuri terlihat
+        found_tag = None
+        for sweep in range(max_retries):
+            if not self.is_running:
+                return False
+
+            client_img = self.screen.capture_client()
+            found_tag = self.matcher.detect_npc_tag(client_img, target_npc="ashuri")
+            if found_tag:
+                self.log(f"🔭 [Auto Camera] Tag Jeweler Ashuri terverifikasi di ({found_tag[0]}, {found_tag[1]}) [IoU: {found_tag[2]:.2f}].")
+                break
+
+            self.log(f"🔭 [Auto Camera] Memutar pandangan ({sweep + 1}/{max_retries})...")
+            self.input.hold_key("left", 0.35)
+            time.sleep(0.15)
+
+        if not found_tag:
+            self.log("⚠️ [Auto Camera] Gagal menemukan Jeweler Ashuri setelah putaran 360°. Melanjutkan dengan sudut saat ini.")
+            return False
+
+        # 3. Penyelarasan Presisi (Centering posisi X ke tengah layar ~375 - 410)
+        target_min_x = 375
+        target_max_x = 410
+        for adj in range(12):
+            if not self.is_running:
+                return False
+
+            client_img = self.screen.capture_client()
+            tag_pos = self.matcher.detect_npc_tag(client_img, target_npc="ashuri")
+            if not tag_pos:
+                break
+
+            cur_x, cur_y, _ = tag_pos
+            if target_min_x <= cur_x <= target_max_x:
+                self.log(f"✅ [Auto Camera] Kamera terkunci sejajar lurus! (Posisi X: {cur_x} [Target: {target_min_x}-{target_max_x}]).")
+                return True
+
+            if cur_x > target_max_x:
+                # Ashuri di sebelah kanan tengah -> tap Panah Kanan sedikit
+                self.input.hold_key("right", 0.06)
+            elif cur_x < target_min_x:
+                # Ashuri di sebelah kiri tengah -> tap Panah Kiri sedikit
+                self.input.hold_key("left", 0.06)
+
+            time.sleep(0.12)
+
+        self.log("✅ [Auto Camera] Penyelarasan sudut kamera selesai.")
+        return True
+
+    def interact_with_npc(self, npc_type: str = "storage") -> bool:
+        """
+        Mencari tag NPC, mengklik model karakter di bawah tag kuning (dengan Y offset),
+        menunggu jendela Conversation muncul, lalu mengklik opsi menu aksi.
+        - npc_type == 'storage': Tradesman Abahan -> 'Store/Remove Items'
+        - npc_type == 'merchant': Jeweler Ashuri -> 'Buy/Sell Items'
+        """
+        npc_label = "Tradesman Abahan (Gudang)" if npc_type == "storage" else "Jeweler Ashuri (Pedagang)"
+        target_key = "abahan" if npc_type == "storage" else "ashuri"
+        self.log(f"🤝 [NPC Interact] Mencari {npc_label}...")
+
+        nav_cfg = self.config.get("auto_nav", {})
+        y_offset = int(nav_cfg.get("npc_click_y_offset", 50))
+        dialog_wait = float(nav_cfg.get("dialog_wait_sec", 1.2))
+
+        for attempt in range(1, 5):
+            if not self.is_running:
+                return False
+
+            client_img = self.screen.capture_client()
+            tag_match = self.matcher.detect_npc_tag(client_img, target_npc=target_key)
+
+            if not tag_match:
+                self.log(f"⚠️ [NPC Interact] Tag {target_key} belum terdeteksi (Percobaan {attempt}/4). Menunggu...")
+                time.sleep(0.35)
+                continue
+
+            tag_x, tag_y, conf = tag_match
+            self.log(f"🎯 [NPC Interact] Tag {npc_label} terverifikasi di ({tag_x}, {tag_y}) [IoU: {conf:.2f}].")
+            
+            # Posisi klik model karakter NPC: tepat di tengah horizontal bawah namanya
+            body_x = tag_x
+            body_y = tag_y + y_offset + (attempt - 1) * 6
+
+            self.log(f"🖱️ [NPC Interact] Mengklik karakter {target_key} di ({body_x}, {body_y}) [Tengah Bawah Tag ({tag_x}, {tag_y}) Offset Y: +{body_y - tag_y}]...")
+            self.input.click(body_x, body_y)
+
+            # Tunggu jendela Conversation muncul
+            start_wait = time.time()
+            dialog_open = False
+            while time.time() - start_wait < dialog_wait:
+                if not self.is_running:
+                    return False
+                time.sleep(0.1)
+                chk_img = self.screen.capture_client()
+                if self.matcher.detect_conversation_dialog(chk_img):
+                    dialog_open = True
+                    break
+
+            if dialog_open:
+                self.log(f"💬 [NPC Interact] Jendela Conversation {target_key} terbuka!")
+                time.sleep(0.2)
+                # Cari dan klik menu aksi (Store/Remove Items atau Buy/Sell Items)
+                chk_img = self.screen.capture_client()
+                menu_pos = self.matcher.detect_dialog_menu_option(chk_img, option_type=npc_type)
+                if menu_pos:
+                    mx, my = menu_pos
+                    menu_name = "Store/Remove Items" if npc_type == "storage" else "Buy/Sell Items"
+                    self.log(f"🖱️ [NPC Interact] Mengklik opsi '{menu_name}' di ({mx}, {my})...")
+                    self.input.click(mx, my)
+                    time.sleep(0.5)
+                    return True
+                else:
+                    self.log("⚠️ [NPC Interact] Gagal mendeteksi koordinat opsi menu dialog.")
+            else:
+                self.log(f"⚠️ [NPC Interact] Dialog belum muncul pada percobaan {attempt}/3. Mengulang klik...")
+
+        self.log(f"❌ [NPC Interact] Gagal berinteraksi dengan {npc_label}.")
+        return False
+
+    def run_auto_storage_merchant_loop(self) -> None:
+        """
+        TASK 5: Full End-to-End Automation Loop:
+        1. Auto-align camera straight between Tradesman Abahan and Jeweler Ashuri.
+        2. Click Tradesman Abahan -> Open Storage.
+        3. Withdraw items to inventory until full or storage empty.
+        4. Close Storage window (Esc).
+        5. Walk forward (hold 'W' for configured duration) to Jeweler Ashuri.
+        6. Click Jeweler Ashuri -> Open Shop.
+        7. Sell items from inventory (run_inventory_to_npc).
+        8. Close Shop window (Esc).
+        9. Walk backward (hold 'S' for configured duration) to Tradesman Abahan.
+        10. Repeat until storage is completely empty or user stops (F12).
+        """
+        self.is_running = True
+        self.input.reset_abort()
+
+        nav_cfg = self.config.get("auto_nav", {})
+        walk_to_merch = float(nav_cfg.get("walk_to_merchant_sec", 7.5))
+        walk_to_store = float(nav_cfg.get("walk_to_storage_sec", 7.5))
+        fwd_key = str(nav_cfg.get("forward_key", "w")).lower()
+        bwd_key = str(nav_cfg.get("backward_key", "s")).lower()
+        settle_delay = float(nav_cfg.get("post_walk_settle_sec", 0.5))
+        do_align = bool(nav_cfg.get("auto_align_camera", True))
+
+        self.log("🚀 ========================================================")
+        self.log("🚀 MEMULAI OTOMASI PENUH: TARIK GUDANG & JUAL KE NPC LOOP")
+        self.log(f"🚀 Durasi Jalan: Maju '{fwd_key}' = {walk_to_merch}s | Mundur '{bwd_key}' = {walk_to_store}s")
+        self.log("🚀 Tekan F12 atau Esc kapan saja untuk menghentikan makro.")
+        self.log("🚀 ========================================================")
+
+        self.wm.activate_window()
+        time.sleep(0.3)
+
+        # 0. Safety Guard & Auto Camera Alignment
+        if do_align:
+            self.auto_align_camera()
+
+        cycle = 0
+        total_withdrawn = 0
+        total_sold = 0
+
+        try:
+            while self.is_running:
+                cycle += 1
+                self.log(f"\n🔄 === MEMULAI SIKLUS #{cycle} ===")
+
+                # Safety check: kematian karakter
+                client_img = self.screen.capture_client()
+                if self.matcher.detect_death_popup(client_img):
+                    self.log("🚨 [SAFETY STOP] KARAKTER MATI! Menghentikan makro.")
+                    break
+
+                # -------------------------------------------------------------
+                # LANGKAH 1: Buka Gudang (Tradesman Abahan)
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 1: Berinteraksi dengan Tradesman Abahan (Gudang)...")
+                if not self.interact_with_npc("storage"):
+                    self.log(f"⚠️ [Siklus #{cycle}] Mencoba klik ulang dialog Gudang...")
+                    time.sleep(0.5)
+                    if not self.interact_with_npc("storage"):
+                        self.log(f"❌ [Siklus #{cycle}] Tidak dapat membuka jendela Gudang. Menghentikan loop.")
+                        break
+
+                time.sleep(0.4)
+
+                # -------------------------------------------------------------
+                # LANGKAH 2: Tarik Barang dari Gudang ke Tas
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 2: Menarik barang dari Gudang ke Tas...")
+                withdrawn = self.run_storage_to_inventory(keep_running=True)
+                total_withdrawn += withdrawn
+                self.log(f"[Siklus #{cycle}] Berhasil menarik {withdrawn} item (Total akumulasi: {total_withdrawn}).")
+
+                # Tutup jendela Storage
+                self.log(f"[Siklus #{cycle}] Menutup jendela Gudang (Tekan ESC)...")
+                self.input.press_key("esc")
+                time.sleep(0.35)
+
+                if withdrawn == 0:
+                    self.log("🏁 [Selesai] Tidak ada lagi item yang ditarik dari Gudang (Gudang telah kosong).")
+                    self.log(f"🎉 Total seluruh siklus: {cycle} siklus, {total_withdrawn} item ditarik, {total_sold} item terjual.")
+                    break
+
+                if not self.is_running:
+                    break
+
+                # -------------------------------------------------------------
+                # LANGKAH 3: Berjalan Maju ke Jeweler Ashuri
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 3: Berjalan maju ke Jeweler Ashuri (Tahan '{fwd_key}' {walk_to_merch}s)...")
+                self.input.hold_key(fwd_key, walk_to_merch)
+                time.sleep(settle_delay)
+
+                if not self.is_running:
+                    break
+
+                # -------------------------------------------------------------
+                # LANGKAH 4: Buka Toko (Jeweler Ashuri)
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 4: Berinteraksi dengan Jeweler Ashuri (Pedagang)...")
+                if not self.interact_with_npc("merchant"):
+                    self.log(f"⚠️ [Siklus #{cycle}] Mencoba klik ulang dialog Toko...")
+                    time.sleep(0.5)
+                    if not self.interact_with_npc("merchant"):
+                        self.log(f"❌ [Siklus #{cycle}] Tidak dapat membuka Toko. Menghentikan loop.")
+                        break
+
+                time.sleep(0.4)
+
+                # -------------------------------------------------------------
+                # LANGKAH 5: Jual Barang dari Tas ke Pedagang
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 5: Menjual barang di Tas ke Toko...")
+                sold = self.run_inventory_to_npc(keep_running=True)
+                total_sold += sold
+                self.log(f"[Siklus #{cycle}] Berhasil menjual {sold} item (Total akumulasi: {total_sold}).")
+
+                # Tutup jendela Toko
+                self.log(f"[Siklus #{cycle}] Menutup jendela Toko (Tekan ESC)...")
+                self.input.press_key("esc")
+                time.sleep(0.35)
+
+                if not self.is_running:
+                    break
+
+                # -------------------------------------------------------------
+                # LANGKAH 6: Berjalan Mundur kembali ke Tradesman Abahan
+                # -------------------------------------------------------------
+                self.log(f"[Siklus #{cycle}] Langkah 6: Berjalan mundur kembali ke Tradesman Abahan (Tahan '{bwd_key}' {walk_to_store}s)...")
+                self.input.hold_key(bwd_key, walk_to_store)
+                time.sleep(settle_delay)
+
+                self.log(f"✅ [Siklus #{cycle}] Selesai satu siklus penuh bolak-balik!")
+                time.sleep(0.5)
+
+        except InterruptedError:
+            self.log("🛑 Otomasi Loop dibatalkan oleh pengguna.")
+        except Exception as e:
+            self.log(f"❌ Error pada Otomasi Loop: {e}")
+        finally:
+            self.is_running = False
+            # Pastikan tombol jalan terlepas
+            try:
+                self.input.key_up(fwd_key)
+                self.input.key_up(bwd_key)
+            except Exception:
+                pass
+            self.log(f"🏁 Otomasi Selesai. Total siklus: {cycle}, Ditarik: {total_withdrawn}, Terjual: {total_sold}.")

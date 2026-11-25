@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+
+# Root sample screenshots
+/*.png

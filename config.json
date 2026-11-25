@@ -1,6 +1,6 @@
 {
   "ui": {
-    "compact_mode": false
+    "compact_mode": true
   },
   "window": {
     "title_patterns": [
@@ -17,28 +17,28 @@
   "delays": {
     "speed_level": 5,
     "hover_delay_sec": 0.35,
-    "drag_duration_sec": 0.03,
+    "drag_duration_sec": 0.206,
     "click_delay_sec": 0.1,
     "popup_wait_timeout_sec": 2.0,
-    "post_action_delay_sec": 0.25,
+    "post_action_delay_sec": 0.15,
     "hunt_loop_interval_sec": 60,
     "sell_wait_timeout_sec": 2.0,
     "sell_post_delay_sec": 0.35
   },
   "inventory": {
-    "x1": 543,
-    "y1": 281,
-    "x2": 755,
-    "y2": 425,
+    "x1": 546,
+    "y1": 284,
+    "x2": 756,
+    "y2": 424,
     "cols": 6,
     "rows": 4,
     "total_slots": 24
   },
   "storage": {
-    "x1": 3,
-    "y1": 115,
+    "x1": 4,
+    "y1": 117,
     "x2": 364,
-    "y2": 548,
+    "y2": 547,
     "cols": 10,
     "rows": 12,
     "total_slots": 120
@@ -74,7 +74,20 @@
     "stop": "f12",
     "storage_to_inv": "f9",
     "inv_to_merchant": "f10",
-    "dismiss_popup": "f8"
+    "dismiss_popup": "f8",
+    "auto_loop": "f7"
+  },
+  "auto_nav": {
+    "enabled": true,
+    "walk_to_merchant_sec": 6,
+    "walk_to_storage_sec": 6,
+    "forward_key": "w",
+    "backward_key": "s",
+    "npc_click_y_offset": 50,
+    "auto_align_camera": true,
+    "max_align_retries": 15,
+    "dialog_wait_sec": 1.2,
+    "post_walk_settle_sec": 0.5
   },
   "auto_skill": {
     "enabled": false,

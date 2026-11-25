@@ -5,6 +5,32 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.2.0] - 2026-11-25
+
+### 🟢 Added & Improved
+- **Mode Otomasi Penuh: Siklus Tarik Gudang & Jual ke NPC Merchant (Issue / Task 5)**:
+  - Mengotomasi seluruh siklus secara terus-menerus (*end-to-end loop*):
+    1. Buka gudang via NPC *Tradesman Abahan* -> Ambil barang sampai tas penuh.
+    2. Tutup jendela gudang (`Esc`).
+    3. Bergerak lurus ke pedagang (*Jeweler Ashuri*) menggunakan tombol keyboard (`W`) tanpa perlu klik tanah, menghindari hambatan peti toko (*vending stall*).
+    4. Buka dialog toko *Jeweler Ashuri* -> Jual semua barang di inventaris.
+    5. Tutup dialog toko (`Esc`).
+    6. Bergerak mundur kembali ke gudang (*Tradesman Abahan*) menggunakan tombol keyboard (`S`) secara presisi tanpa memutar kamera.
+    7. Ulangi siklus secara otomatis hingga gudang kosong atau pengguna menekan hotkey stop (`F12`).
+- **Penyelarasan Kamera Otomatis (*Auto Camera Alignment & Zoom-Out*)**:
+  - Kamera otomatis melakukan *full zoom-out* (gulir ke bawah) saat makro dimulai.
+  - Memutar sudut pandang (panah kiri) hingga garis lurus antara *Tradesman Abahan* dan *Jeweler Ashuri* sejajar dan terkunci secara otomatis.
+- **Deteksi Presisi & Cepat Berbasis Binary IoU Matching**:
+  - Membedakan nama NPC target dengan akurasi tinggi menggunakan perbandingan bentuk font pixel (IoU ~0.95+), mencegah salah klik pada NPC lain di sekitar seperti *Craftsman Kirika* (skor IoU < 0.20 langsung ditolak).
+  - Akselerasi C pada pemindaian warna kuning teks via `ImageChops`, mempercepat deteksi dari 1.200 ms menjadi ~140 ms per frame.
+  - Penyesuaian titik klik model karakter NPC tepat di tengah horizontal bawah namanya.
+- **Dukungan UI & Shortcut Baru**:
+  - Menambahkan radio button Mode *🔄 Siklus Penuh: Tarik Gudang & Jual ke NPC*.
+  - Menambahkan tombol aksi cepat *🔄 Auto Loop [F7]* di GUI beserta shortcut keyboard global *F7*.
+  - Tab Pengaturan baru untuk durasi jalan (`walk_to_merchant_sec`, `walk_to_storage_sec`) dan opsi penyesuaian navigasi.
+
+---
+
 ## [v1.1.2] - 2026-11-24
 
 ### 🟢 Added & Improved

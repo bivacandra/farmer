@@ -483,9 +483,10 @@ class FarmerGUI(tk.Tk):
         mode_frame = tk.LabelFrame(container, text=" Pilih Mode Operasi ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
         mode_frame.pack(fill=tk.X, pady=(0, 12))
 
-        self.selected_mode = tk.StringVar(value="hunt_auto_deposit")
+        self.selected_mode = tk.StringVar(value="auto_storage_merchant_loop")
 
         modes = [
+            ("🔄 Full Auto Loop (Tarik Gudang Abahan & Jual ke Jeweler Ashuri)", "auto_storage_merchant_loop"),
             ("⚔️ Auto Hunt Loop (Auto Pindah ke Gudang + Auto Skill sambil Hunt)", "hunt_auto_deposit"),
             ("⚡ Auto Skill Standalone (Hanya Jalankan Auto Skill tanpa pindah tas)", "auto_skill_standalone"),
             ("Inventory -> Storage (Sekali jalan: Simpan ke Gudang dengan Filter Blacklist)", "inv_to_storage"),
@@ -596,6 +597,21 @@ class FarmerGUI(tk.Tk):
         s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
         i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
         pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
+        loop_hk = self.config.get("hotkeys", "auto_loop", "f7").upper()
+
+        self.btn_quick_loop = tk.Button(
+            q_btn_bar,
+            text=f"🔄 Auto Loop [{loop_hk}]",
+            font=("Segoe UI", 8, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            activebackground="#2ea043",
+            relief="flat",
+            padx=6,
+            pady=5,
+            command=lambda: self.run_specific_task("auto_storage_merchant_loop")
+        )
+        self.btn_quick_loop.pack(side=tk.LEFT, padx=(0, 4), fill=tk.X, expand=True)
 
         self.btn_quick_s2i = tk.Button(
             q_btn_bar,
@@ -1991,6 +2007,9 @@ class FarmerGUI(tk.Tk):
             ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
             ("Threshold Match Popup Storage (0.5 - 1.0):", "storage_popup", "match_threshold"),
             ("Interval Cek Auto Hunt (detik):", "delays", "hunt_loop_interval_sec"),
+            ("Waktu Jalan ke Merchant (detik 'W'):", "auto_nav", "walk_to_merchant_sec"),
+            ("Waktu Jalan ke Gudang (detik 'S'):", "auto_nav", "walk_to_storage_sec"),
+            ("Klik Offset NPC Y (bawah tag kuning):", "auto_nav", "npc_click_y_offset"),
             ("Klik Popup Storage X (Teks Kiri Atas):", "storage_popup", "click_x"),
             ("Klik Popup Storage Y (Teks Kiri Atas):", "storage_popup", "click_y"),
         ]
@@ -2029,6 +2048,7 @@ class FarmerGUI(tk.Tk):
         hk_fields = [
             ("Mulai Makro (Start):", "start", "f11"),
             ("Hentikan Makro (Stop):", "stop", "f12"),
+            ("Shortcut Auto Tarik & Jual Loop:", "auto_loop", "f7"),
             ("Shortcut Storage -> Tas:", "storage_to_inv", "f9"),
             ("Shortcut Tas -> NPC Merchant:", "inv_to_merchant", "f10"),
             ("Shortcut Tutup Popup Storage:", "dismiss_popup", "f8"),
@@ -2237,6 +2257,7 @@ class FarmerGUI(tk.Tk):
                 s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9")
                 i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10")
                 pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8")
+                loop_hk = self.config.get("hotkeys", "auto_loop", "f7")
 
                 if start_hk:
                     keyboard.add_hotkey(start_hk, lambda: self.after(0, self.start_macro))
@@ -2250,10 +2271,12 @@ class FarmerGUI(tk.Tk):
                     keyboard.add_hotkey(i2n_hk, lambda: self.after(0, self.run_specific_task, "inv_to_merchant"))
                 if pop_hk:
                     keyboard.add_hotkey(pop_hk, lambda: self.after(0, self.run_specific_task, "dismiss_popup"))
+                if loop_hk:
+                    keyboard.add_hotkey(loop_hk, lambda: self.after(0, self.run_specific_task, "auto_storage_merchant_loop"))
 
                 if verbose:
                     self.append_log(
-                        f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), "
+                        f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), {loop_hk.upper()} (Auto Loop), "
                         f"{s2i_hk.upper()} (Storage->Tas), {i2n_hk.upper()} (Tas->NPC), {pop_hk.upper()} (Tutup Popup)."
                     )
                 self._update_hotkey_labels()
@@ -2267,6 +2290,7 @@ class FarmerGUI(tk.Tk):
         s2i_hk = self.config.get("hotkeys", "storage_to_inv", "f9").upper()
         i2n_hk = self.config.get("hotkeys", "inv_to_merchant", "f10").upper()
         pop_hk = self.config.get("hotkeys", "dismiss_popup", "f8").upper()
+        loop_hk = self.config.get("hotkeys", "auto_loop", "f7").upper()
 
         if hasattr(self, "status_badge") and not getattr(self, "is_character_dead", False) and not self.bot.is_running:
             self.status_badge.config(text=f"IDLE ({start_hk} | {stop_hk})")
@@ -2274,6 +2298,8 @@ class FarmerGUI(tk.Tk):
             self.btn_start.config(text=f"▶ MULAI ({start_hk})")
         if hasattr(self, "btn_stop"):
             self.btn_stop.config(text=f"⏹ STOP ({stop_hk})")
+        if hasattr(self, "btn_quick_loop"):
+            self.btn_quick_loop.config(text=f"🔄 Auto Loop [{loop_hk}]")
         if hasattr(self, "btn_quick_s2i"):
             self.btn_quick_s2i.config(text=f"📦 Tarik Storage [{s2i_hk}]")
         if hasattr(self, "btn_quick_i2n"):
@@ -2507,6 +2533,8 @@ class FarmerGUI(tk.Tk):
                     self.bot.run_storage_to_inventory()
                 elif mode == "inv_to_merchant":
                     self.bot.run_inventory_to_npc()
+                elif mode == "auto_storage_merchant_loop":
+                    self.bot.run_auto_storage_merchant_loop()
             finally:
                 self.after(0, self._on_macro_finished)
 
@@ -2541,6 +2569,8 @@ class FarmerGUI(tk.Tk):
                     self.bot.run_inventory_to_storage()
                 elif task_name == "dismiss_popup":
                     self.bot.dismiss_storage_popup()
+                elif task_name == "auto_storage_merchant_loop":
+                    self.bot.run_auto_storage_merchant_loop()
             finally:
                 self.after(0, self._on_macro_finished)
 

@@ -279,3 +279,244 @@ class TemplateMatcher:
         # Hanya dieksekusi jika skor benar-benar kurang dari threshold
         is_match = bool(round(best_score, 2) >= round(threshold, 2) or best_score >= (threshold - 1e-4))
         return is_match, best_name, float(best_score)
+
+    # =========================================================================
+    # NPC & Navigation Detection Methods
+    # =========================================================================
+    @staticmethod
+    def _is_yellow_pixel(r: int, g: int, b: int) -> bool:
+        """
+        Detects yellow text pixels regardless of terrain blending, anti-aliasing, or lighting.
+        Yellow color requires high Red & Green, and significantly lower Blue relative to both.
+        """
+        return bool(r > 160 and g > 160 and (r - b) > 40 and (g - b) > 40)
+
+    def find_yellow_tag_clusters(self, client_img: Image.Image, min_pixels: int = 25) -> List[Dict]:
+        """
+        Fast C-accelerated scan for yellow text pixels (NPC names like Tradesman Abahan & Jeweler Ashuri).
+        Uses PIL channel operations for ~10x speedup and line-based bounding box clustering.
+        Returns a list of cluster dicts: {'x_mid', 'y_mid', 'x_min', 'x_max', 'y_min', 'y_max', 'count'}.
+        """
+        from PIL import ImageChops
+        offset_x, offset_y = 50, 40
+        w_img, h_img = client_img.size
+        crop_w = max(10, w_img - 100)
+        crop_h = max(10, h_img - 120)
+
+        crop = client_img.crop((offset_x, offset_y, offset_x + crop_w, offset_y + crop_h)).convert("RGB")
+        r, g, b = crop.split()
+
+        # C-accelerated thresholding & difference mask:
+        # (r > 160) & (g > 160) & ((r - b) > 40) & ((g - b) > 40)
+        r_th = r.point(lambda p: 255 if p > 160 else 0)
+        g_th = g.point(lambda p: 255 if p > 160 else 0)
+        rg_mask = ImageChops.multiply(r_th, g_th)
+
+        r_sub_b = ImageChops.subtract(r, b).point(lambda p: 255 if p > 40 else 0)
+        g_sub_b = ImageChops.subtract(g, b).point(lambda p: 255 if p > 40 else 0)
+        diff_mask = ImageChops.multiply(r_sub_b, g_sub_b)
+
+        yellow_mask = ImageChops.multiply(rg_mask, diff_mask)
+        raw_bytes = yellow_mask.tobytes()
+        mw, mh = yellow_mask.size
+
+        clusters = []
+        for idx in range(len(raw_bytes)):
+            if raw_bytes[idx]:
+                x = (idx % mw) + offset_x
+                y = (idx // mw) + offset_y
+                matched = False
+                for c in clusters:
+                    # Text line clustering: vertical within 8px, horizontal within 24px of word bounding box
+                    if abs(c["y_mid"] - y) <= 8 and (c["x_min"] - 24) <= x <= (c["x_max"] + 24):
+                        c["pts"].append((x, y))
+                        c["x_min"] = min(c["x_min"], x)
+                        c["x_max"] = max(c["x_max"], x)
+                        c["y_min"] = min(c["y_min"], y)
+                        c["y_max"] = max(c["y_max"], y)
+                        c["x_mid"] = (c["x_min"] + c["x_max"]) // 2
+                        c["y_mid"] = (c["y_min"] + c["y_max"]) // 2
+                        matched = True
+                        break
+                if not matched:
+                    clusters.append({
+                        "x_min": x, "x_max": x,
+                        "y_min": y, "y_max": y,
+                        "x_mid": x, "y_mid": y,
+                        "pts": [(x, y)]
+                    })
+
+        valid_clusters = []
+        for c in clusters:
+            count = len(c["pts"])
+            if count >= min_pixels:
+                valid_clusters.append({
+                    "x_mid": c["x_mid"],
+                    "y_mid": c["y_mid"],
+                    "x_min": c["x_min"],
+                    "x_max": c["x_max"],
+                    "y_min": c["y_min"],
+                    "y_max": c["y_max"],
+                    "count": count
+                })
+
+        # Sort clusters from top to bottom (ascending y)
+        valid_clusters.sort(key=lambda item: item["y_mid"])
+        return valid_clusters
+
+    def _extract_yellow_points(self, img_crop: Image.Image) -> set:
+        """Extracts relative (x, y) coordinates of yellow text pixels."""
+        rgb = img_crop.convert("RGB")
+        w, h = rgb.size
+        pts = set()
+        for y in range(h):
+            for x in range(w):
+                r, g, b = rgb.getpixel((x, y))
+                if self._is_yellow_pixel(r, g, b):
+                    pts.add((x, y))
+        return pts
+
+    def _match_pattern_iou(self, cand_pts: set, tmpl_pts: set) -> float:
+        """Calculates IoU match score between candidate yellow points and template yellow points."""
+        if not cand_pts or not tmpl_pts:
+            return 0.0
+        min_cx = min(p[0] for p in cand_pts)
+        min_cy = min(p[1] for p in cand_pts)
+        min_tx = min(p[0] for p in tmpl_pts)
+        min_ty = min(p[1] for p in tmpl_pts)
+
+        cand_norm = set((p[0] - min_cx, p[1] - min_cy) for p in cand_pts)
+        tmpl_norm = set((p[0] - min_tx, p[1] - min_ty) for p in tmpl_pts)
+
+        best_iou = 0.0
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                shifted_tmpl = set((p[0] + dx, p[1] + dy) for p in tmpl_norm)
+                intersection = len(cand_norm.intersection(shifted_tmpl))
+                union = len(cand_norm.union(shifted_tmpl))
+                iou = intersection / union if union > 0 else 0.0
+                if iou > best_iou:
+                    best_iou = iou
+        return best_iou
+
+    def detect_npc_tag(self, client_img: Image.Image, target_npc: str = "ashuri", threshold: float = 0.50) -> Optional[Tuple[int, int, float]]:
+        """
+        Detects NPC yellow text tag ('ashuri' or 'abahan') using shape-accurate binary IoU matching.
+        Strictly rejects unrelated NPCs like Craftsman Kirika (score ~0.18 < 0.50).
+        Returns (center_x, center_y, confidence) or None if target is not visible.
+        """
+        target_lower = target_npc.lower()
+        tpl_name = "npc_ashuri_exact.png" if "ashuri" in target_lower else "npc_abahan_exact.png"
+        tpl_path = self.templates_dir / tpl_name
+
+        if not tpl_path.exists():
+            tpl_path = self.templates_dir / ("npc_ashuri_tag.png" if "ashuri" in target_lower else "npc_abahan_tag.png")
+
+        if not tpl_path.exists():
+            return None
+
+        try:
+            tmpl_img = Image.open(tpl_path)
+            tmpl_pts = self._extract_yellow_points(tmpl_img)
+            if not tmpl_pts:
+                return None
+        except Exception:
+            return None
+
+        clusters = self.find_yellow_tag_clusters(client_img, min_pixels=25)
+        if not clusters:
+            return None
+
+        best_match = None
+        best_score = 0.0
+
+        w_img, h_img = client_img.size
+
+        for c in clusters:
+            pad = 3
+            cx1 = max(0, c["x_min"] - pad)
+            cy1 = max(0, c["y_min"] - pad)
+            cx2 = min(w_img, c["x_max"] + pad)
+            cy2 = min(h_img, c["y_max"] + pad)
+
+            crop = client_img.crop((cx1, cy1, cx2, cy2))
+            cand_pts = self._extract_yellow_points(crop)
+            score = self._match_pattern_iou(cand_pts, tmpl_pts)
+
+            if score > best_score:
+                best_score = score
+                best_match = (c["x_mid"], c["y_mid"], float(score))
+
+        # Only accept if match score meets threshold (eliminates Kirika, other players/NPCs)
+        if best_match and best_score >= threshold:
+            return best_match
+
+        return None
+
+    def detect_conversation_dialog(self, client_img: Image.Image, threshold: float = 0.65) -> bool:
+        """
+        Checks if the NPC Conversation window is currently open.
+        Looks for the 'Conversation' header at top-left (x: 10-200, y: 80-140).
+        """
+        conv_tpl = self.templates_dir / "dialog_conversation_title.png"
+        if conv_tpl.exists():
+            needle = Image.open(conv_tpl)
+            search_region = client_img.crop((10, 70, 220, 150))
+            res = self.match_template_in_image(search_region, needle, threshold=threshold)
+            if res is not None:
+                return True
+
+        # Fallback: check for dark conversation box with orange options
+        rgb_img = client_img.crop((10, 80, 350, 450)).convert("RGB")
+        orange_count = 0
+        w, h = rgb_img.size
+        for y in range(h):
+            for x in range(w):
+                r, g, b = rgb_img.getpixel((x, y))
+                if r > 180 and 80 < g < 180 and b < 60:
+                    orange_count += 1
+                    if orange_count > 60:
+                        return True
+        return False
+
+    def detect_dialog_menu_option(self, client_img: Image.Image, option_type: str = "storage", threshold: float = 0.65) -> Optional[Tuple[int, int]]:
+        """
+        Finds the clickable coordinate for the dialog option:
+        - option_type == 'storage': 'Store/Remove Items'
+        - option_type == 'merchant': 'Buy/Sell Items'
+        Returns (x, y) coordinates relative to client canvas, or None.
+        """
+        tpl_name = "dialog_store_menu.png" if option_type == "storage" else "dialog_merchant_menu.png"
+        tpl_path = self.templates_dir / tpl_name
+
+        search_crop = client_img.crop((50, 200, 300, 320))
+        if tpl_path.exists():
+            needle = Image.open(tpl_path)
+            res = self.match_template_in_image(search_crop, needle, threshold=threshold)
+            if res is not None:
+                rx, ry, _ = res
+                return rx + 50, ry + 200
+
+        # Fallback: calculate based on orange text line 2 in conversation dialog
+        rgb_crop = search_crop.convert("RGB")
+        w, h = rgb_crop.size
+        orange_pts = []
+        for y in range(h):
+            for x in range(w):
+                r, g, b = rgb_crop.getpixel((x, y))
+                if r > 180 and 80 < g < 180 and b < 60:
+                    orange_pts.append((x + 50, y + 200))
+
+        if not orange_pts:
+            # Default fallback coordinates based on UI layout
+            return (167, 270) if option_type == "storage" else (167, 242)
+
+        # The action option is always in the lower group of orange text
+        y_split = 255 if option_type == "storage" else 235
+        line2_pts = [p for p in orange_pts if p[1] >= y_split]
+        if line2_pts:
+            avg_x = sum(p[0] for p in line2_pts) // len(line2_pts)
+            avg_y = sum(p[1] for p in line2_pts) // len(line2_pts)
+            return avg_x, avg_y
+
+        return (167, 270) if option_type == "storage" else (167, 242)

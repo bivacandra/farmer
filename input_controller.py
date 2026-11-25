@@ -34,6 +34,12 @@ class InputController:
 
     def abort(self) -> None:
         self.is_aborted = True
+        # Safety release on abort for movement keys
+        for k in ["w", "s", "a", "d", "left", "right"]:
+            try:
+                self.key_up(k)
+            except Exception:
+                pass
 
     def reset_abort(self) -> None:
         self.is_aborted = False
@@ -201,3 +207,92 @@ class InputController:
                 except Exception:
                     pass
         time.sleep(0.04)
+
+    def key_down(self, key_name: str) -> None:
+        """Sends key down event."""
+        key_lower = key_name.lower().strip()
+        try:
+            if HAS_DIRECT_INPUT:
+                pydirectinput.keyDown(key_lower)
+            elif HAS_PYAUTOGUI:
+                pyautogui.keyDown(key_lower)
+        except Exception:
+            if HAS_PYAUTOGUI:
+                try:
+                    pyautogui.keyDown(key_lower)
+                except Exception:
+                    pass
+
+    def key_up(self, key_name: str) -> None:
+        """Sends key up event."""
+        key_lower = key_name.lower().strip()
+        try:
+            if HAS_DIRECT_INPUT:
+                pydirectinput.keyUp(key_lower)
+            elif HAS_PYAUTOGUI:
+                pyautogui.keyUp(key_lower)
+        except Exception:
+            if HAS_PYAUTOGUI:
+                try:
+                    pyautogui.keyUp(key_lower)
+                except Exception:
+                    pass
+
+    def hold_key(self, key_name: str, duration: float) -> None:
+        """
+        Holds a key down for a specified duration, checking for abort regularly.
+        Ensures key_up is always called upon exit or interruption.
+        """
+        if self.is_aborted:
+            raise InterruptedError("Operation aborted before holding key.")
+
+        self.key_down(key_name)
+        try:
+            start_t = time.time()
+            while time.time() - start_t < duration:
+                if self.is_aborted:
+                    raise InterruptedError(f"Operation aborted while holding key '{key_name}'.")
+                time.sleep(0.02)
+        finally:
+            self.key_up(key_name)
+            time.sleep(0.05)
+
+    def scroll_up(self, clicks: int = 25) -> None:
+        """Simulates mouse wheel scroll UP (Full Zoom Out camera in Tantra)."""
+        if self.is_aborted:
+            raise InterruptedError("Operation aborted.")
+
+        if sys.platform == "win32":
+            import ctypes
+            # MOUSEEVENTF_WHEEL = 0x0800, dwData = +120 per click (Wheel UP)
+            for _ in range(clicks):
+                if self.is_aborted:
+                    raise InterruptedError("Operation aborted.")
+                ctypes.windll.user32.mouse_event(0x0800, 0, 0, 120, 0)
+                time.sleep(0.025)
+        elif HAS_PYAUTOGUI:
+            for _ in range(clicks):
+                if self.is_aborted:
+                    raise InterruptedError("Operation aborted.")
+                pyautogui.scroll(1)
+                time.sleep(0.025)
+
+    def scroll_down(self, clicks: int = 25) -> None:
+        """Simulates mouse wheel scroll down (Full Zoom Out camera in Tantra)."""
+        if self.is_aborted:
+            raise InterruptedError("Operation aborted.")
+
+        if sys.platform == "win32":
+            import ctypes
+            # MOUSEEVENTF_WHEEL = 0x0800, dwData = -120 per click (Wheel DOWN)
+            for _ in range(clicks):
+                if self.is_aborted:
+                    raise InterruptedError("Operation aborted.")
+                ctypes.windll.user32.mouse_event(0x0800, 0, 0, -120, 0)
+                time.sleep(0.025)
+        elif HAS_PYAUTOGUI:
+            for _ in range(clicks):
+                if self.is_aborted:
+                    raise InterruptedError("Operation aborted.")
+                pyautogui.scroll(-1)
+                time.sleep(0.025)

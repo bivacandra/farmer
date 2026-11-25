@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.1.2"
+APP_VERSION = "v1.2.0"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ui": {
@@ -84,7 +84,20 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "stop": "f12",
         "storage_to_inv": "f9",
         "inv_to_merchant": "f10",
-        "dismiss_popup": "f8"
+        "dismiss_popup": "f8",
+        "auto_loop": "f7"
+    },
+    "auto_nav": {
+        "enabled": True,
+        "walk_to_merchant_sec": 7.5,
+        "walk_to_storage_sec": 7.5,
+        "forward_key": "w",
+        "backward_key": "s",
+        "npc_click_y_offset": 50,
+        "auto_align_camera": True,
+        "max_align_retries": 15,
+        "dialog_wait_sec": 1.2,
+        "post_walk_settle_sec": 0.5
     },
     "auto_skill": {
         "enabled": False,
