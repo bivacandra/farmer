@@ -104,10 +104,10 @@
     "mode": "smart_combo",
     "combo_check_interval_sec": 0.5,
     "quickslot_bar": {
-      "x": 375,
-      "y": 4,
-      "w": 389,
-      "h": 75,
+      "x": 376,
+      "y": 462,
+      "w": 385,
+      "h": 73,
       "cols": 10,
       "rows": 2
     },
@@ -121,7 +121,7 @@
         "hotkey": "3",
         "cast_delay_sec": 0.3,
         "slot_box": null,
-        "template_path": "assets/skills/skill_skill_1795696960015_1795696974.png",
+        "template_path": "assets/skills/skill_skill_1795696960015_1795703949.png",
         "similarity_threshold": 0.75,
         "brightness_ratio_threshold": 0.7
       },
@@ -134,7 +134,7 @@
         "hotkey": "4",
         "cast_delay_sec": 0.3,
         "slot_box": null,
-        "template_path": "assets/skills/skill_skill_1795696979174_1795696986.png",
+        "template_path": "assets/skills/skill_skill_1795696979174_1795703952.png",
         "similarity_threshold": 0.75,
         "brightness_ratio_threshold": 0.7
       }
@@ -232,6 +232,34 @@
         "enabled": false,
         "interval": 10.0
       }
+    },
+    "hunt_keys": {
+      "e": {
+        "enabled": true,
+        "interval": 1.5,
+        "desc": "Target Monster (E)"
+      },
+      "r": {
+        "enabled": true,
+        "interval": 0.8,
+        "desc": "Serang Monster (R)"
+      },
+      "f": {
+        "enabled": true,
+        "interval": 1.0,
+        "desc": "Pick Loot Drop (F)"
+      }
+    },
+    "buffs": {
+      "enabled": true,
+      "floating_area": {
+        "x": 10,
+        "y": 10,
+        "w": 200,
+        "h": 50
+      },
+      "check_interval_sec": 0.5,
+      "list": []
     }
   },
   "auto_pot": {

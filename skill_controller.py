@@ -26,6 +26,17 @@ DEFAULT_SKILL_CONFIG: Dict[str, Any] = {
     "combo_check_interval_sec": 0.05,
     "quickslot_bar": {"x": 300, "y": 700, "w": 410, "h": 86, "cols": 10, "rows": 2},
     "combo_list": [],
+    "hunt_keys": {
+        "e": {"enabled": True, "interval": 1.5, "desc": "Target Monster (E)"},
+        "r": {"enabled": True, "interval": 0.8, "desc": "Serang Monster (R)"},
+        "f": {"enabled": True, "interval": 1.0, "desc": "Pick Loot Drop (F)"}
+    },
+    "buffs": {
+        "enabled": True,
+        "floating_area": {"x": 10, "y": 10, "w": 200, "h": 50},
+        "check_interval_sec": 0.5,
+        "list": []
+    },
     "keys": {
         "1": {"enabled": False, "interval": 10.0},
         "2": {"enabled": False, "interval": 10.0},
@@ -106,12 +117,14 @@ class SkillController:
         screen_capture,
         window_manager,
         config,
+        template_matcher=None,
         logger: Optional[Callable[[str], None]] = None
     ):
         self.input = input_controller
         self.screen = screen_capture
         self.wm = window_manager
         self.config = config
+        self.matcher = template_matcher
         self.log_fn = logger or print
 
         self.is_running = False
@@ -131,6 +144,14 @@ class SkillController:
         self.combo_step_index: int = 0
         self.current_combo_index: int = -1
         self._template_cache: Dict[str, Image.Image] = {}
+
+        # Runtime trackers for Basic Hunt Actions (E, R, F)
+        self.last_hunt_press_times: Dict[str, float] = {}
+        self.hunt_counts: Dict[str, int] = {}
+
+        # Runtime trackers for Auto Buffs
+        self.last_buff_cast_times: Dict[str, float] = {}
+        self.buff_status: Dict[str, Dict[str, Any]] = {}
 
     def _init_trackers(self):
         keys = self.get_keys_config()
@@ -382,7 +403,11 @@ class SkillController:
             self.last_cast_times.clear()
             self.combo_step_index = 0
             self.current_combo_index = -1
-        self.log("[Auto Skill] Status, Combo Rotasi & Countdown di-reset.")
+            self.last_hunt_press_times.clear()
+            self.hunt_counts.clear()
+            self.last_buff_cast_times.clear()
+            self.buff_status.clear()
+        self.log("[Auto Skill] Status, Combo Rotasi, Buff & Countdown di-reset.")
 
     def start(self):
         with self._lock:
@@ -394,12 +419,14 @@ class SkillController:
                 self.last_press_times[k] = 0.0
             self.combo_step_index = 0
             self.last_cast_times.clear()
+            self.last_buff_cast_times.clear()
+            self.last_hunt_press_times.clear()
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
             cfg = self.get_skill_cfg()
             mode = cfg.get("mode", "smart_combo")
             if mode == "smart_combo":
-                self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Rotasi Sekuensial & Cooldown Awareness)...")
+                self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Rotasi Sekuensial, Buff & Hunting)...")
             else:
                 self.log("⚡ [Auto Skill] Berjalan dalam Mode TIMER INTERVAL (Detik)...")
 
@@ -411,7 +438,128 @@ class SkillController:
             self._thread.join(timeout=1.0)
         self.log("⚡ [Auto Skill] Berhenti.")
 
+    def is_buff_present_in_floating_area(self, client_img: Image.Image, buff_item: Dict[str, Any]) -> bool:
+        """Checks if a registered buff icon is currently active in the floating buff area."""
+        if client_img is None or not buff_item:
+            return False
+
+        floating_area = self.get_skill_cfg().get("buffs", {}).get("floating_area", {})
+        if not floating_area or floating_area.get("w", 0) <= 0 or floating_area.get("h", 0) <= 0:
+            return False
+
+        fx = int(floating_area.get("x", 0))
+        fy = int(floating_area.get("y", 0))
+        fw = int(floating_area.get("w", 0))
+        fh = int(floating_area.get("h", 0))
+
+        x2 = min(client_img.width, fx + fw)
+        y2 = min(client_img.height, fy + fh)
+        if x2 <= fx or y2 <= fy:
+            return False
+
+        floating_crop = client_img.crop((fx, fy, x2, y2))
+        tpl_path = buff_item.get("template_path") or buff_item.get("icon_filename", "")
+        if not tpl_path:
+            return False
+
+        tpl_img = self.load_skill_template(tpl_path)
+        if tpl_img is None:
+            return False
+
+        threshold = float(buff_item.get("match_threshold", 0.68))
+
+        if self.matcher and hasattr(self.matcher, "match_template_in_image"):
+            res = self.matcher.match_template_in_image(floating_crop, tpl_img, threshold=threshold)
+            return res is not None
+
+        return False
+
+    def _run_hunt_keys_tick(self, cfg: Dict[str, Any]):
+        """Executes basic hunting keys (E: Target, R: Attack, F: Pick Loot) on their respective intervals."""
+        hunt_cfg = cfg.get("hunt_keys", DEFAULT_SKILL_CONFIG.get("hunt_keys", {}))
+        now = time.time()
+
+        for key_name in ["e", "r", "f"]:
+            if not self.is_running:
+                break
+            k_info = hunt_cfg.get(key_name, {})
+            if not k_info.get("enabled", False):
+                continue
+
+            interval = max(0.1, float(k_info.get("interval", 1.0)))
+            last_t = self.last_hunt_press_times.get(key_name, 0.0)
+
+            if now - last_t >= interval:
+                try:
+                    if self.wm and hasattr(self.wm, "is_foreground") and not self.wm.is_foreground():
+                        self.wm.activate_window()
+                        time.sleep(0.02)
+                    self.input.press_key(key_name)
+                    self.last_hunt_press_times[key_name] = now
+                    with self._lock:
+                        self.hunt_counts[key_name] = self.hunt_counts.get(key_name, 0) + 1
+                    time.sleep(0.03)
+                except Exception:
+                    pass
+
+    def _run_buff_tick(self, buffs_cfg: Dict[str, Any]):
+        """Monitors floating buff area and recasts buffs that have disappeared."""
+        if not self.screen:
+            return
+        buff_list = buffs_cfg.get("list", [])
+        if not buff_list:
+            return
+
+        client_img = self.screen.capture_client()
+        if client_img is None:
+            return
+
+        now = time.time()
+
+        for idx, buff_item in enumerate(buff_list):
+            if not self.is_running:
+                break
+            if not buff_item.get("enabled", True):
+                continue
+
+            buff_id = str(buff_item.get("id", f"buff_{idx+1}"))
+            buff_name = buff_item.get("name", f"Buff #{idx+1}")
+            hotkey = str(buff_item.get("hotkey", "")).strip().lower()
+            tpl_path = buff_item.get("template_path") or buff_item.get("icon_filename", "")
+
+            if not hotkey or not tpl_path:
+                continue
+
+            is_present = self.is_buff_present_in_floating_area(client_img, buff_item)
+
+            with self._lock:
+                self.buff_status[buff_id] = {
+                    "is_active": is_present,
+                    "name": buff_name,
+                    "hotkey": hotkey
+                }
+
+            if not is_present:
+                # Buff is EXPIRED / HILANG from floating area!
+                last_cast = self.last_buff_cast_times.get(buff_id, 0.0)
+                recast_cd = max(2.0, float(buff_item.get("recast_cooldown_sec", 5.0)))
+                cast_delay = max(0.2, float(buff_item.get("cast_delay_sec", 1.0)))
+
+                if now - last_cast >= recast_cd:
+                    try:
+                        self.log(f"🛡️ [Auto Buff] Buff '{buff_name}' [{hotkey.upper()}] hilang dari Floating Buff Area! Mentrigger recast...")
+                        if self.wm and hasattr(self.wm, "is_foreground") and not self.wm.is_foreground():
+                            self.wm.activate_window()
+                            time.sleep(0.04)
+                        self.input.hold_key(hotkey, 0.08)
+                        self.last_buff_cast_times[buff_id] = time.time()
+                        time.sleep(cast_delay)
+                    except Exception as e:
+                        self.log(f"🛡️ [Auto Buff] Error recast buff '{buff_name}': {e}")
+
     def _loop(self):
+        last_hunt_tick = 0.0
+        last_buff_tick = 0.0
         while self.is_running:
             try:
                 cfg = self.get_skill_cfg()
@@ -419,6 +567,21 @@ class SkillController:
                     time.sleep(0.3)
                     continue
 
+                now = time.time()
+
+                # 1. Basic Hunt Keys (E: Target, R: Attack, F: Loot)
+                if now - last_hunt_tick >= 0.05:
+                    self._run_hunt_keys_tick(cfg)
+                    last_hunt_tick = now
+
+                # 2. Auto Buff Check & Recast
+                buffs_cfg = cfg.get("buffs", {})
+                buff_interval = float(buffs_cfg.get("check_interval_sec", 0.5))
+                if buffs_cfg.get("enabled", True) and (now - last_buff_tick >= buff_interval):
+                    self._run_buff_tick(buffs_cfg)
+                    last_buff_tick = now
+
+                # 3. Main Skill Execution (Smart Combo or Timer Interval)
                 mode = cfg.get("mode", "smart_combo")
 
                 if mode == "smart_combo":

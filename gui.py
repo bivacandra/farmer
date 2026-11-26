@@ -2017,18 +2017,85 @@ class FarmerGUI(tk.Tk):
             command=self._test_detect_combo_skills
         ).pack(side=tk.LEFT)
 
+        # -------------------------------------------------------------
+        # Basic Hunting Actions (E, R, F)
+        # -------------------------------------------------------------
+        hunt_keys_cfg = skill_cfg.get("hunt_keys") or DEFAULT_SKILL_CONFIG.get("hunt_keys", {})
+        e_cfg = hunt_keys_cfg.get("e", {})
+        r_cfg = hunt_keys_cfg.get("r", {})
+        f_cfg = hunt_keys_cfg.get("f", {})
+
+        self.var_hunt_e_en = tk.BooleanVar(value=e_cfg.get("enabled", True))
+        self.var_hunt_e_interval = tk.StringVar(value=str(e_cfg.get("interval", 1.5)))
+        self.var_hunt_r_en = tk.BooleanVar(value=r_cfg.get("enabled", True))
+        self.var_hunt_r_interval = tk.StringVar(value=str(r_cfg.get("interval", 0.8)))
+        self.var_hunt_f_en = tk.BooleanVar(value=f_cfg.get("enabled", True))
+        self.var_hunt_f_interval = tk.StringVar(value=str(f_cfg.get("interval", 1.0)))
+
+        hunt_frame = tk.LabelFrame(
+            container,
+            text=" 🗡️ Aksi Hunting Dasar (E: Target, R: Serang, F: Pick Loot) ",
+            bg="#161b22",
+            fg="#e3b341",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=6,
+            relief="ridge",
+            bd=1
+        )
+        hunt_frame.pack(fill=tk.X, pady=(0, 8))
+
+        hunt_inner = tk.Frame(hunt_frame, bg="#161b22")
+        hunt_inner.pack(fill=tk.X)
+
+        def make_hunt_col(parent, label_text, var_en, var_sec, cd_attr_name):
+            col = tk.Frame(parent, bg="#161b22")
+            col.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+
+            cb = tk.Checkbutton(
+                col,
+                text=label_text,
+                variable=var_en,
+                bg="#161b22",
+                fg="#58a6ff",
+                selectcolor="#0d1117",
+                activebackground="#161b22",
+                activeforeground="#58a6ff",
+                font=("Segoe UI", 8, "bold")
+            )
+            cb.pack(side=tk.LEFT, padx=(0, 4))
+
+            tk.Label(col, text="Interval:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(0, 2))
+            ent = tk.Entry(col, textvariable=var_sec, width=5, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8))
+            ent.pack(side=tk.LEFT, padx=(0, 6))
+
+            lbl_cd = tk.Label(col, text="-", bg="#161b22", fg="#8b949e", font=("Consolas", 8, "bold"), width=6, anchor=tk.W)
+            lbl_cd.pack(side=tk.LEFT)
+            setattr(self, cd_attr_name, lbl_cd)
+
+        make_hunt_col(hunt_inner, "🎯 Target (E)", self.var_hunt_e_en, self.var_hunt_e_interval, "lbl_hunt_e_cd")
+        make_hunt_col(hunt_inner, "⚔️ Serang (R)", self.var_hunt_r_en, self.var_hunt_r_interval, "lbl_hunt_r_cd")
+        make_hunt_col(hunt_inner, "📦 Pick Loot (F)", self.var_hunt_f_en, self.var_hunt_f_interval, "lbl_hunt_f_cd")
+
         # Body container
         self.skill_body_container = tk.Frame(container, bg="#222428")
         self.skill_body_container.pack(fill=tk.BOTH, expand=True)
 
         # -------------------------------------------------------------
-        # 1. SMART COMBO MODE VIEW
+        # 1. SMART COMBO MODE VIEW (Combo Serang & Auto Buff)
         # -------------------------------------------------------------
         self.frame_combo_mode = tk.Frame(self.skill_body_container, bg="#222428")
 
-        # Bar Calibration & Action Frame
-        combo_bar_ctrl = tk.Frame(self.frame_combo_mode, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
-        combo_bar_ctrl.pack(fill=tk.X, pady=(0, 8))
+        self.combo_notebook = ttk.Notebook(self.frame_combo_mode)
+        self.tab_combo_attack = tk.Frame(self.combo_notebook, bg="#222428")
+        self.tab_combo_buff = tk.Frame(self.combo_notebook, bg="#222428")
+        self.combo_notebook.add(self.tab_combo_attack, text=" ⚔️ Combo Skill Serang ")
+        self.combo_notebook.add(self.tab_combo_buff, text=" 🛡️ Auto Buff (Floating Bar) ")
+        self.combo_notebook.pack(fill=tk.BOTH, expand=True)
+
+        # --- SUB-TAB 1: COMBO SERANG ---
+        combo_bar_ctrl = tk.Frame(self.tab_combo_attack, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
+        combo_bar_ctrl.pack(fill=tk.X, pady=(0, 6))
 
         bar_btn = tk.Button(
             combo_bar_ctrl,
@@ -2083,9 +2150,8 @@ class FarmerGUI(tk.Tk):
             font=("Consolas", 8)
         ).pack(side=tk.LEFT)
 
-        # Info Guide banner
         guide_lbl = tk.Label(
-            self.frame_combo_mode,
+            self.tab_combo_attack,
             text="💡 Rotasi combo dicek berurutan (1 ➔ 2 ➔ 3...). Jika skill Cooldown (gelap), otomatis dilewati ke skill berikutnya.",
             bg="#222428",
             fg="#7ee787",
@@ -2093,9 +2159,8 @@ class FarmerGUI(tk.Tk):
         )
         guide_lbl.pack(anchor=tk.W, pady=(0, 6))
 
-        # Scrollable container for combo skill items
-        canvas_combo = tk.Canvas(self.frame_combo_mode, bg="#222428", highlightthickness=0)
-        scroll_combo = tk.Scrollbar(self.frame_combo_mode, orient="vertical", command=canvas_combo.yview)
+        canvas_combo = tk.Canvas(self.tab_combo_attack, bg="#222428", highlightthickness=0)
+        scroll_combo = tk.Scrollbar(self.tab_combo_attack, orient="vertical", command=canvas_combo.yview)
         self.frame_combo_list = tk.Frame(canvas_combo, bg="#222428")
 
         self.frame_combo_list.bind("<Configure>", lambda e: canvas_combo.configure(scrollregion=canvas_combo.bbox("all")))
@@ -2108,6 +2173,114 @@ class FarmerGUI(tk.Tk):
         self._combo_thumbnails = []
         self._combo_row_vars = []
         self._combo_status_labels = []
+
+        # --- SUB-TAB 2: AUTO BUFF ---
+        buffs_cfg = skill_cfg.get("buffs") or DEFAULT_SKILL_CONFIG.get("buffs", {})
+        self.var_buff_enabled = tk.BooleanVar(value=buffs_cfg.get("enabled", True))
+        self.var_buff_check_interval = tk.StringVar(value=str(buffs_cfg.get("check_interval_sec", 0.5)))
+
+        buff_bar_ctrl = tk.Frame(self.tab_combo_buff, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
+        buff_bar_ctrl.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Checkbutton(
+            buff_bar_ctrl,
+            text="🛡️ Aktifkan Auto Buff",
+            variable=self.var_buff_enabled,
+            bg="#161b22",
+            fg="#7ee787",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#7ee787",
+            font=("Segoe UI", 8, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            buff_bar_ctrl,
+            text="🎯 Kalibrasi Floating Buff Area",
+            font=("Segoe UI", 8, "bold"),
+            bg="#8957e5",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.calibrate_floating_buff_area
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.lbl_floating_buff_info = tk.Label(
+            buff_bar_ctrl,
+            text="Floating Area: -",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Consolas", 8)
+        )
+        self.lbl_floating_buff_info.pack(side=tk.LEFT, padx=(0, 10))
+        self._update_floating_buff_label()
+
+        tk.Button(
+            buff_bar_ctrl,
+            text="➕ Tambah Buff",
+            font=("Segoe UI", 8, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self._add_buff_item
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Label(
+            buff_bar_ctrl,
+            text="Interval Cek (s):",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Segoe UI", 8)
+        ).pack(side=tk.LEFT, padx=(0, 2))
+
+        tk.Entry(
+            buff_bar_ctrl,
+            textvariable=self.var_buff_check_interval,
+            width=5,
+            bg="#0d1117",
+            fg="#e1e2e6",
+            insertbackground="#ffffff",
+            font=("Consolas", 8)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            buff_bar_ctrl,
+            text="🔍 Test Cek Floating Buff",
+            font=("Segoe UI", 8),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self._test_detect_buffs
+        ).pack(side=tk.LEFT)
+
+        buff_guide_lbl = tk.Label(
+            self.tab_combo_buff,
+            text="💡 Macro memonitor icon di Floating Buff Area. Jika icon buff hilang dari layar (durasi habis), skill buff otomatis di-cast ulang.",
+            bg="#222428",
+            fg="#7ee787",
+            font=("Segoe UI", 8, "italic")
+        )
+        buff_guide_lbl.pack(anchor=tk.W, pady=(0, 6))
+
+        canvas_buff = tk.Canvas(self.tab_combo_buff, bg="#222428", highlightthickness=0)
+        scroll_buff = tk.Scrollbar(self.tab_combo_buff, orient="vertical", command=canvas_buff.yview)
+        self.frame_buff_list = tk.Frame(canvas_buff, bg="#222428")
+
+        self.frame_buff_list.bind("<Configure>", lambda e: canvas_buff.configure(scrollregion=canvas_buff.bbox("all")))
+        canvas_buff.create_window((0, 0), window=self.frame_buff_list, anchor="nw")
+        canvas_buff.configure(yscrollcommand=scroll_buff.set)
+
+        canvas_buff.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_buff.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._buff_thumbnails = []
+        self._buff_row_vars = []
+        self._buff_status_labels = []
 
         # -------------------------------------------------------------
         # 2. TIMER INTERVAL MODE VIEW
@@ -2207,8 +2380,9 @@ class FarmerGUI(tk.Tk):
             [("f1", "f6"), ("f2", "f7"), ("f3", "f8"), ("f4", "f9"), ("f5", "f10")]
         )
 
-        # Render combo items initially
+        # Render combo & buff items initially
         self._render_combo_items()
+        self._render_buff_items()
 
         # Show appropriate view based on initial mode
         self._on_skill_mode_changed()
@@ -2672,6 +2846,389 @@ class FarmerGUI(tk.Tk):
         self.append_log(f"⚡ [Auto Skill Test Cooldown]:\n{res_text}")
         messagebox.showinfo("Hasil Cek Cooldown Real-time", f"Hasil deteksi saat ini:\n\n{res_text}")
 
+    # =========================================================================
+    # Auto Buff (Floating Bar) Handlers
+    # =========================================================================
+    def _update_floating_buff_label(self):
+        area = self.config.get("auto_skill", {}).get("buffs", {}).get("floating_area", {})
+        if area and "x" in area:
+            self.lbl_floating_buff_info.config(
+                text=f"Area: X={area.get('x')} Y={area.get('y')} W={area.get('w')} H={area.get('h')}",
+                fg="#3fb950"
+            )
+        else:
+            self.lbl_floating_buff_info.config(
+                text="Area: Belum Dikalibrasi",
+                fg="#f85149"
+            )
+
+    def calibrate_floating_buff_area(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(10, x2 - x1)
+            h = max(10, y2 - y1)
+            if "auto_skill" not in self.config.data:
+                self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
+            buffs_cfg = self.config.data["auto_skill"].setdefault("buffs", dict(DEFAULT_SKILL_CONFIG["buffs"]))
+            buffs_cfg["floating_area"] = {
+                "x": x1, "y": y1, "w": w, "h": h
+            }
+            self.config.save()
+            self._update_floating_buff_label()
+            self.append_log(f"🛡️ [Auto Buff] Floating Buff Area dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            messagebox.showinfo(
+                "Kalibrasi Berhasil",
+                f"Floating Buff Area berhasil disimpan!\nKoordinat: X={x1}, Y={y1}, W={w}, H={h}\n\n"
+                f"Macro akan memonitor kemunculan icon buff di area ini."
+            )
+
+        AreaSelectorWindow(self, "Pilih Area Floating Buff (Tempat Icon Buff Muncul di Layar)", 1, 1, client_img, on_saved)
+
+    def _add_buff_item(self):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        buffs_cfg = self.config.data.setdefault("auto_skill", {}).setdefault("buffs", dict(DEFAULT_SKILL_CONFIG["buffs"]))
+        buff_list = buffs_cfg.setdefault("list", [])
+        new_idx = len(buff_list) + 1
+        default_slot_str = "Custom Area"
+        default_hk = "1"
+        if new_idx <= 10:
+            num_k = new_idx if new_idx < 10 else 0
+            default_slot_str = f"Atas: Slot {new_idx} ({num_k})"
+            default_hk = str(num_k)
+        else:
+            f_num = min(10, new_idx - 10)
+            default_slot_str = f"Bawah: Slot F{f_num}"
+            default_hk = f"f{f_num}"
+
+        buff_list.append({
+            "id": f"buff_{int(time.time() * 1000)}",
+            "name": f"Buff {new_idx}",
+            "hotkey": default_hk,
+            "slot_str": default_slot_str,
+            "slot_index": new_idx,
+            "recast_cooldown_sec": 5.0,
+            "cast_delay_sec": 1.0,
+            "template_path": "",
+            "enabled": True
+        })
+        self._render_buff_items()
+
+    def _delete_buff_item(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        buff_list = self.config.data.get("auto_skill", {}).get("buffs", {}).get("list", [])
+        if 0 <= idx < len(buff_list):
+            del buff_list[idx]
+            self._render_buff_items()
+
+    def _render_buff_items(self):
+        for widget in self.frame_buff_list.winfo_children():
+            widget.destroy()
+
+        self._buff_thumbnails = []
+        self._buff_row_vars = []
+        self._buff_status_labels = []
+
+        buff_list = self.config.get("auto_skill", {}).get("buffs", {}).get("list", [])
+        if not buff_list:
+            empty_lbl = tk.Label(
+                self.frame_buff_list,
+                text="Belum ada buff terdaftar.\nKlik tombol '➕ Tambah Buff' di atas untuk menambahkan buff yang ingin dimonitor.",
+                bg="#222428",
+                fg="#8b949e",
+                font=("Segoe UI", 10),
+                pady=20
+            )
+            empty_lbl.pack()
+            return
+
+        hotkey_options = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+                          "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "e", "r", "f"]
+        slot_options = [
+            "Atas: Slot 1 (1)",
+            "Atas: Slot 2 (2)",
+            "Atas: Slot 3 (3)",
+            "Atas: Slot 4 (4)",
+            "Atas: Slot 5 (5)",
+            "Atas: Slot 6 (6)",
+            "Atas: Slot 7 (7)",
+            "Atas: Slot 8 (8)",
+            "Atas: Slot 9 (9)",
+            "Atas: Slot 10 (0)",
+            "Bawah: Slot F1",
+            "Bawah: Slot F2",
+            "Bawah: Slot F3",
+            "Bawah: Slot F4",
+            "Bawah: Slot F5",
+            "Bawah: Slot F6",
+            "Bawah: Slot F7",
+            "Bawah: Slot F8",
+            "Bawah: Slot F9",
+            "Bawah: Slot F10",
+            "Custom Area"
+        ]
+
+        for idx, item in enumerate(buff_list):
+            card = tk.LabelFrame(
+                self.frame_buff_list,
+                text=f" 🛡️ Buff #{idx + 1} - {item.get('name', f'Buff {idx+1}')} ",
+                bg="#161b22",
+                fg="#58a6ff",
+                font=("Segoe UI", 9, "bold"),
+                padx=8,
+                pady=6,
+                relief="ridge",
+                bd=1
+            )
+            card.pack(fill=tk.X, pady=(0, 6))
+
+            r1 = tk.Frame(card, bg="#161b22")
+            r1.pack(fill=tk.X, pady=(0, 4))
+
+            var_en = tk.BooleanVar(value=item.get("enabled", True))
+            tk.Checkbutton(
+                r1,
+                text="Aktif",
+                variable=var_en,
+                bg="#161b22",
+                fg="#7ee787",
+                selectcolor="#0d1117",
+                activebackground="#161b22",
+                activeforeground="#7ee787",
+                font=("Segoe UI", 8, "bold")
+            ).pack(side=tk.LEFT, padx=(0, 6))
+
+            tk.Label(r1, text="Nama:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_name = tk.StringVar(value=item.get("name", f"Buff {idx+1}"))
+            tk.Entry(r1, textvariable=var_name, width=12, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Slot Buff:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            init_slot_str = item.get("slot_str")
+            if not init_slot_str or init_slot_str not in slot_options:
+                cur_slot = item.get("slot_index", 1)
+                cur_hk = str(item.get("hotkey", "")).lower()
+                if cur_hk.startswith("f"):
+                    init_slot_str = f"Bawah: Slot {cur_hk.upper()}"
+                elif 1 <= cur_slot <= 10:
+                    num_k = cur_slot if cur_slot < 10 else 0
+                    init_slot_str = f"Atas: Slot {cur_slot} ({num_k})"
+                else:
+                    init_slot_str = "Custom Area"
+                if init_slot_str not in slot_options:
+                    init_slot_str = "Custom Area"
+
+            var_slot = tk.StringVar(value=init_slot_str)
+            cb_slot = ttk.Combobox(r1, textvariable=var_slot, values=slot_options, width=16, state="readonly", font=("Segoe UI", 8))
+            cb_slot.pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Hotkey:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_hotkey = tk.StringVar(value=str(item.get("hotkey", "1")).lower())
+            cb_hotkey = ttk.Combobox(r1, textvariable=var_hotkey, values=hotkey_options, width=5, state="readonly", font=("Segoe UI", 8))
+            cb_hotkey.pack(side=tk.LEFT, padx=(2, 8))
+
+            def _on_buff_slot_change(event, vs=var_slot, vh=var_hotkey):
+                val = vs.get()
+                if val.startswith("Atas: Slot "):
+                    import re
+                    m = re.search(r"\((\d+)\)", val)
+                    if m:
+                        vh.set(m.group(1))
+                elif val.startswith("Bawah: Slot "):
+                    import re
+                    m = re.search(r"(F\d+)", val, re.IGNORECASE)
+                    if m:
+                        vh.set(m.group(1).lower())
+            cb_slot.bind("<<ComboboxSelected>>", _on_buff_slot_change)
+
+            tk.Label(r1, text="Recast Cooldown (s):", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_recast_cd = tk.StringVar(value=str(item.get("recast_cooldown_sec", 5.0)))
+            tk.Entry(r1, textvariable=var_recast_cd, width=5, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8)).pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Cast Delay (s):", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_delay = tk.StringVar(value=str(item.get("cast_delay_sec", 1.0)))
+            tk.Entry(r1, textvariable=var_delay, width=5, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8)).pack(side=tk.LEFT, padx=(2, 8))
+
+            btn_del = tk.Button(r1, text="🗑️", font=("Segoe UI", 7), bg="#da3633", fg="#ffffff", relief="flat", padx=4, command=lambda i=idx: self._delete_buff_item(i))
+            btn_del.pack(side=tk.RIGHT, padx=4)
+
+            # Row 2: Template icon, capture actions, status
+            r2 = tk.Frame(card, bg="#161b22")
+            r2.pack(fill=tk.X, pady=(2, 0))
+
+            tpl_path = item.get("template_path") or item.get("icon_filename", "")
+            img_displayed = False
+            if tpl_path:
+                full_tpl_path = Path(tpl_path) if Path(tpl_path).is_absolute() else Path(self.config.base_dir) / tpl_path
+                if full_tpl_path.exists():
+                    try:
+                        pil_img = Image.open(full_tpl_path).convert("RGB")
+                        pil_img.thumbnail((32, 32))
+                        tk_thumb = ImageTk.PhotoImage(pil_img)
+                        self._buff_thumbnails.append(tk_thumb)
+                        lbl_icon = tk.Label(r2, image=tk_thumb, bg="#0d1117", bd=1, relief="solid")
+                        lbl_icon.pack(side=tk.LEFT, padx=(0, 6))
+                        img_displayed = True
+                    except Exception:
+                        pass
+
+            if not img_displayed:
+                lbl_no_icon = tk.Label(r2, text="[No Icon]", bg="#0d1117", fg="#8b949e", font=("Consolas", 7), width=8, height=2, bd=1, relief="solid")
+                lbl_no_icon.pack(side=tk.LEFT, padx=(0, 6))
+
+            tk.Button(
+                r2,
+                text="📸 Ambil Icon dari Slot",
+                font=("Segoe UI", 7, "bold"),
+                bg="#238636",
+                fg="#ffffff",
+                relief="flat",
+                padx=6,
+                pady=2,
+                command=lambda i=idx: self.capture_buff_icon_from_slot(i)
+            ).pack(side=tk.LEFT, padx=(0, 4))
+
+            tk.Button(
+                r2,
+                text="✂️ Crop dari Floating Buff",
+                font=("Segoe UI", 7),
+                bg="#30363d",
+                fg="#c9d1d9",
+                relief="flat",
+                padx=6,
+                pady=2,
+                command=lambda i=idx: self.capture_buff_icon_from_floating(i)
+            ).pack(side=tk.LEFT, padx=(0, 10))
+
+            lbl_status = tk.Label(
+                r2,
+                text="[READY]" if tpl_path else "[BELUM DI-CAPTURE]",
+                bg="#161b22",
+                fg="#3fb950" if tpl_path else "#8b949e",
+                font=("Segoe UI", 8, "bold")
+            )
+            lbl_status.pack(side=tk.RIGHT, padx=4)
+            self._buff_status_labels.append(lbl_status)
+
+            self._buff_row_vars.append({
+                "id": item.get("id", f"buff_{idx+1}"),
+                "enabled": var_en,
+                "name": var_name,
+                "slot_str": var_slot,
+                "hotkey": var_hotkey,
+                "recast_cooldown_sec": var_recast_cd,
+                "cast_delay_sec": var_delay,
+                "template_path": tpl_path
+            })
+
+    def capture_buff_icon_from_slot(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        buff_list = self.config.data.get("auto_skill", {}).get("buffs", {}).get("list", [])
+        if not (0 <= idx < len(buff_list)):
+            return
+        item = buff_list[idx]
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        crop_img = self.bot.skills.get_skill_slot_crop(client_img, item)
+        if not crop_img:
+            messagebox.showwarning(
+                "Slot Belum Dikalibrasi",
+                f"Kotak slot untuk Buff #{idx+1} belum diketahui.\n"
+                f"Silakan Kalibrasi Bar Skill terlebih dahulu pada tab Combo Serang, atau gunakan tombol '✂️ Crop dari Floating Buff'."
+            )
+            return
+
+        skills_dir = self.config.skills_dir
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"buff_{item.get('id', f'idx_{idx}')}_{int(time.time())}.png"
+        save_path = skills_dir / filename
+        crop_img.save(save_path)
+
+        rel_path = f"assets/skills/{filename}"
+        item["template_path"] = rel_path
+        self.config.save()
+        self._render_buff_items()
+        self.append_log(f"🛡️ [Auto Buff] Icon buff #{idx+1} berhasil dicapture dari slot ke {rel_path}.")
+        messagebox.showinfo("Capture Berhasil", f"Icon Buff #{idx+1} berhasil dicapture dari slot!\nTersimpan di: {rel_path}")
+
+    def capture_buff_icon_from_floating(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        buff_list = self.config.data.get("auto_skill", {}).get("buffs", {}).get("list", [])
+        if not (0 <= idx < len(buff_list)):
+            return
+        item = buff_list[idx]
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(5, x2 - x1)
+            h = max(5, y2 - y1)
+            crop_img = client_img.crop(rect)
+            skills_dir = self.config.skills_dir
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"buff_{item.get('id', f'idx_{idx}')}_{int(time.time())}.png"
+            save_path = skills_dir / filename
+            crop_img.save(save_path)
+
+            rel_path = f"assets/skills/{filename}"
+            item["template_path"] = rel_path
+            self.config.save()
+            self._render_buff_items()
+            self.append_log(f"🛡️ [Auto Buff] Icon buff #{idx+1} berhasil di-crop dari floating area ke {rel_path}.")
+            messagebox.showinfo("Capture Berhasil", f"Icon Buff #{idx+1} berhasil disimpan!\nFile: {rel_path}")
+
+        AreaSelectorWindow(self, f"Crop Icon Buff #{idx+1} dari Floating Buff Bar", 1, 1, client_img, on_saved)
+
+    def _test_detect_buffs(self):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        buffs_cfg = self.config.data.get("auto_skill", {}).get("buffs", {})
+        buff_list = buffs_cfg.get("list", [])
+        if not buff_list:
+            messagebox.showinfo("Info", "Belum ada buff dalam daftar Auto Buff.")
+            return
+
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+        if client_img is None:
+            messagebox.showerror("Error", "Gagal mengambil capture layar game.")
+            return
+
+        summary_lines = []
+        for idx, item in enumerate(buff_list):
+            name = item.get("name", f"Buff {idx+1}")
+            hotkey = item.get("hotkey", "?")
+            tpl_path = item.get("template_path") or item.get("icon_filename", "")
+
+            if not tpl_path:
+                status_str = "BELUM CAPTURE ICON"
+                summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+                if idx < len(self._buff_status_labels):
+                    self._buff_status_labels[idx].config(text=f"[{status_str}]", fg="#8b949e")
+                continue
+
+            is_present = self.bot.skills.is_buff_present_in_floating_area(client_img, item)
+            if is_present:
+                status_str = "AKTIF DI FLOATING BAR"
+                color = "#3fb950"
+            else:
+                status_str = "HILANG / EXPIRED (PERLU RECAST)"
+                color = "#f85149"
+
+            summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+            if idx < len(self._buff_status_labels):
+                self._buff_status_labels[idx].config(text=f"[{status_str}]", fg=color)
+
+        res_text = "\n".join(summary_lines)
+        self.append_log(f"🛡️ [Auto Buff Test]:\n{res_text}")
+        messagebox.showinfo("Hasil Cek Floating Buff", f"Status buff saat ini di Floating Buff Area:\n\n{res_text}")
+
     def _apply_skill_gui_to_config(self, save_to_disk=False):
         if "auto_skill" not in self.config.data:
             self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
@@ -2687,6 +3244,27 @@ class FarmerGUI(tk.Tk):
                 self.config.data["auto_skill"]["combo_check_interval_sec"] = max(0.01, float(self.var_skill_combo_interval.get().strip()))
             except ValueError:
                 self.config.data["auto_skill"]["combo_check_interval_sec"] = 0.05
+
+        # Save hunt keys (E, R, F)
+        if hasattr(self, "var_hunt_e_en"):
+            try:
+                e_int = max(0.1, float(self.var_hunt_e_interval.get().strip()))
+            except ValueError:
+                e_int = 1.5
+            try:
+                r_int = max(0.1, float(self.var_hunt_r_interval.get().strip()))
+            except ValueError:
+                r_int = 0.8
+            try:
+                f_int = max(0.1, float(self.var_hunt_f_interval.get().strip()))
+            except ValueError:
+                f_int = 1.0
+
+            self.config.data["auto_skill"]["hunt_keys"] = {
+                "e": {"enabled": self.var_hunt_e_en.get(), "interval": e_int, "desc": "Target Monster (E)"},
+                "r": {"enabled": self.var_hunt_r_en.get(), "interval": r_int, "desc": "Serang Monster (R)"},
+                "f": {"enabled": self.var_hunt_f_en.get(), "interval": f_int, "desc": "Pick Loot Drop (F)"}
+            }
 
         # Save combo items from UI
         if hasattr(self, "_combo_row_vars") and self._combo_row_vars:
@@ -2717,6 +3295,46 @@ class FarmerGUI(tk.Tk):
                 })
             self.config.data["auto_skill"]["combo_list"] = combo_list
 
+        # Save buffs configuration
+        if hasattr(self, "var_buff_enabled"):
+            buffs_cfg = self.config.data["auto_skill"].setdefault("buffs", dict(DEFAULT_SKILL_CONFIG["buffs"]))
+            buffs_cfg["enabled"] = self.var_buff_enabled.get()
+            try:
+                buffs_cfg["check_interval_sec"] = max(0.05, float(self.var_buff_check_interval.get().strip()))
+            except ValueError:
+                buffs_cfg["check_interval_sec"] = 0.5
+
+            if hasattr(self, "_buff_row_vars") and self._buff_row_vars:
+                buff_list = []
+                for item_vars in self._buff_row_vars:
+                    slot_str = item_vars["slot_str"].get()
+                    import re
+                    m = re.search(r"\d+", slot_str)
+                    slot_idx = int(m.group(0)) if m else 1
+
+                    try:
+                        recast_cd = max(1.0, float(item_vars["recast_cooldown_sec"].get().strip()))
+                    except ValueError:
+                        recast_cd = 5.0
+
+                    try:
+                        cast_delay = max(0.1, float(item_vars["cast_delay_sec"].get().strip()))
+                    except ValueError:
+                        cast_delay = 1.0
+
+                    buff_list.append({
+                        "id": item_vars["id"],
+                        "enabled": item_vars["enabled"].get(),
+                        "name": item_vars["name"].get().strip(),
+                        "slot_str": slot_str,
+                        "slot_index": slot_idx,
+                        "hotkey": item_vars["hotkey"].get().strip().lower(),
+                        "recast_cooldown_sec": recast_cd,
+                        "cast_delay_sec": cast_delay,
+                        "template_path": item_vars["template_path"]
+                    })
+                buffs_cfg["list"] = buff_list
+
         # Save timer interval keys from UI
         if hasattr(self, "skill_vars") and self.skill_vars:
             if "keys" not in self.config.data["auto_skill"]:
@@ -2746,14 +3364,42 @@ class FarmerGUI(tk.Tk):
         if hasattr(self, "skill_vars") and self.skill_vars:
             for k, widgets in self.skill_vars.items():
                 widgets["lbl_countdown"].config(text="-", fg="#8b949e")
+        if hasattr(self, "lbl_hunt_e_cd"):
+            self.lbl_hunt_e_cd.config(text="-", fg="#8b949e")
+            self.lbl_hunt_r_cd.config(text="-", fg="#8b949e")
+            self.lbl_hunt_f_cd.config(text="-", fg="#8b949e")
         if hasattr(self, "_combo_status_labels"):
             for lbl in self._combo_status_labels:
+                lbl.config(text="[RESET]", fg="#8b949e")
+        if hasattr(self, "_buff_status_labels"):
+            for lbl in self._buff_status_labels:
                 lbl.config(text="[RESET]", fg="#8b949e")
 
     def _update_skill_countdowns(self):
         try:
             is_running = self.bot.skills.is_running
             now = time.time()
+
+            # Hunt keys (E, R, F) countdown updates
+            if hasattr(self, "lbl_hunt_e_cd"):
+                for k, en_var, cd_var, lbl in [
+                    ("e", self.var_hunt_e_en, self.var_hunt_e_interval, self.lbl_hunt_e_cd),
+                    ("r", self.var_hunt_r_en, self.var_hunt_r_interval, self.lbl_hunt_r_cd),
+                    ("f", self.var_hunt_f_en, self.var_hunt_f_interval, self.lbl_hunt_f_cd)
+                ]:
+                    if not is_running or not en_var.get():
+                        lbl.config(text="-", fg="#8b949e")
+                        continue
+                    try:
+                        iv = float(cd_var.get().strip())
+                    except ValueError:
+                        iv = 1.0
+                    last_t = self.bot.skills.last_hunt_press_times.get(k, 0.0)
+                    if last_t <= 0.0:
+                        lbl.config(text="0.0s", fg="#e3b341")
+                    else:
+                        rem = max(0.0, iv - (now - last_t))
+                        lbl.config(text=f"{rem:.1f}s", fg="#e3b341" if rem <= 0.3 else "#7ee787")
 
             # Timer mode countdown updates
             if hasattr(self, "skill_vars") and self.skill_vars:
@@ -2794,6 +3440,22 @@ class FarmerGUI(tk.Tk):
                     for idx, lbl in enumerate(self._combo_status_labels):
                         if idx == active_combo_idx:
                             lbl.config(text="▶ [RUNNING]", fg="#58a6ff")
+
+            # Auto Buff live status badges
+            if hasattr(self, "_buff_status_labels") and self._buff_status_labels:
+                with self.bot.skills._lock:
+                    buff_statuses = dict(self.bot.skills.buff_status)
+                for idx, lbl in enumerate(self._buff_status_labels):
+                    if idx < len(self._buff_row_vars):
+                        b_id = self._buff_row_vars[idx]["id"]
+                        if not is_running:
+                            lbl.config(text="[STOPPED]", fg="#8b949e")
+                        elif b_id in buff_statuses:
+                            is_act = buff_statuses[b_id].get("is_active", False)
+                            if is_act:
+                                lbl.config(text="[AKTIF]", fg="#3fb950")
+                            else:
+                                lbl.config(text="[HILANG/RECAST]", fg="#f85149")
         except Exception:
             pass
         self.after(100, self._update_skill_countdowns)
@@ -3993,6 +4655,9 @@ class FarmerGUI(tk.Tk):
                 elif mode == "auto_skill_standalone":
                     self.bot.is_running = True
                     self.bot.skills.start()
+                    pot_cfg = self.config.get("auto_pot", {})
+                    if pot_cfg.get("enabled", True) and pot_cfg.get("sync_with_auto_hunt", True):
+                        self.bot.pots.start()
                     try:
                         last_death_check = 0.0
                         while self.bot.is_running:
@@ -4007,6 +4672,7 @@ class FarmerGUI(tk.Tk):
                             time.sleep(0.2)
                     finally:
                         self.bot.skills.stop()
+                        self.bot.pots.stop()
                         self.bot.is_running = False
                 elif mode == "auto_pot_standalone":
                     self.bot.is_running = True

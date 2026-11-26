@@ -23,7 +23,7 @@ class FarmerBot:
         self.matcher = template_matcher
         self.ocr = ocr_engine
         self.config = config
-        self.skills = SkillController(self.input, self.screen, self.wm, self.config, logger=self.log)
+        self.skills = SkillController(self.input, self.screen, self.wm, self.config, template_matcher=self.matcher, logger=self.log)
         self.pots = PotController(self.input, self.screen, self.wm, self.config, logger=self.log)
 
         self.is_running = False
