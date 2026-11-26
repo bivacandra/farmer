@@ -115,6 +115,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "combo_check_interval_sec": 0.05,
         "quickslot_bar": {"x": 300, "y": 700, "w": 410, "h": 86, "cols": 10, "rows": 2},
         "combo_list": [],
+        "target_monster": {
+            "enabled": True,
+            "area": {"x": 400, "y": 20, "w": 250, "h": 50},
+            "min_red_pixels": 25
+        },
         "hunt_keys": {
             "e": {"enabled": True, "interval": 1.5, "desc": "Target Monster (E)"},
             "r": {"enabled": True, "interval": 0.8, "desc": "Serang Monster (R)"},

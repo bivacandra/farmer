@@ -26,6 +26,11 @@ DEFAULT_SKILL_CONFIG: Dict[str, Any] = {
     "combo_check_interval_sec": 0.05,
     "quickslot_bar": {"x": 300, "y": 700, "w": 410, "h": 86, "cols": 10, "rows": 2},
     "combo_list": [],
+    "target_monster": {
+        "enabled": True,
+        "area": {"x": 400, "y": 20, "w": 250, "h": 50},
+        "min_red_pixels": 25
+    },
     "hunt_keys": {
         "e": {"enabled": True, "interval": 1.5, "desc": "Target Monster (E)"},
         "r": {"enabled": True, "interval": 0.8, "desc": "Serang Monster (R)"},
@@ -152,6 +157,10 @@ class SkillController:
         # Runtime trackers for Auto Buffs
         self.last_buff_cast_times: Dict[str, float] = {}
         self.buff_status: Dict[str, Dict[str, Any]] = {}
+
+        # Runtime trackers for Target Monster Awareness
+        self.has_target: bool = False
+        self.last_target_log_time: float = 0.0
 
     def _init_trackers(self):
         keys = self.get_keys_config()
@@ -407,7 +416,9 @@ class SkillController:
             self.hunt_counts.clear()
             self.last_buff_cast_times.clear()
             self.buff_status.clear()
-        self.log("[Auto Skill] Status, Combo Rotasi, Buff & Countdown di-reset.")
+            self.has_target = False
+            self.last_target_log_time = 0.0
+        self.log("[Auto Skill] Status, Combo Rotasi, Buff, Target & Countdown di-reset.")
 
     def start(self):
         with self._lock:
@@ -474,9 +485,74 @@ class SkillController:
 
         return False
 
-    def _run_hunt_keys_tick(self, cfg: Dict[str, Any]):
+    def has_target_monster(self, client_img: Optional[Image.Image], target_cfg: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Checks whether a monster is currently targeted in the calibrated target monster box.
+        Detects the presence of monster HP bar (red/dark red pixels) and target frame characteristics.
+        """
+        if client_img is None:
+            return False
+        if target_cfg is None:
+            target_cfg = self.get_skill_cfg().get("target_monster", {})
+
+        if not target_cfg.get("enabled", True):
+            return True
+
+        area = target_cfg.get("area")
+        if not area or "x" not in area:
+            return True
+
+        ax = int(area.get("x", 0))
+        ay = int(area.get("y", 0))
+        aw = int(area.get("w", 0))
+        ah = int(area.get("h", 0))
+
+        if aw <= 5 or ah <= 5:
+            return True
+
+        img_w, img_h = client_img.size
+        x1 = max(0, min(ax, img_w - 1))
+        y1 = max(0, min(ay, img_h - 1))
+        x2 = max(x1 + 1, min(ax + aw, img_w))
+        y2 = max(y1 + 1, min(ay + ah, img_h))
+
+        crop = client_img.crop((x1, y1, x2, y2))
+        cw, ch = crop.size
+        if cw == 0 or ch == 0:
+            return False
+
+        crop_rgb = crop.convert("RGB")
+        min_red = int(target_cfg.get("min_red_pixels", 25))
+
+        red_count = 0
+        dark_red_count = 0
+        gold_border_count = 0
+
+        step_x = 1 if cw < 300 else 2
+        step_y = 1 if ch < 100 else 2
+
+        for y in range(0, ch, step_y):
+            for x in range(0, cw, step_x):
+                r, g, b = crop_rgb.getpixel((x, y))
+                # Bright red monster HP bar
+                if r > 120 and g < 70 and b < 70 and (r - max(g, b) > 40):
+                    red_count += 1
+                # Dark red HP bar background (empty bar slot)
+                elif r > 50 and g < 30 and b < 30 and (r - max(g, b) > 25):
+                    dark_red_count += 1
+                # Gold/bronze UI border of the target plate
+                elif r > 110 and g > 90 and b < 100 and (r - b > 35) and abs(r - g) < 55:
+                    gold_border_count += 1
+
+        total_red = red_count + dark_red_count
+        is_targeted = (total_red >= min_red) or (red_count >= 15 and gold_border_count >= 10)
+        return is_targeted
+
+    def _run_hunt_keys_tick(self, cfg: Dict[str, Any], has_target: bool = True):
         """Executes basic hunting keys (E: Target, R: Attack, F: Pick Loot) on their respective intervals."""
         hunt_cfg = cfg.get("hunt_keys", DEFAULT_SKILL_CONFIG.get("hunt_keys", {}))
+        target_cfg = cfg.get("target_monster", DEFAULT_SKILL_CONFIG.get("target_monster", {}))
+        require_target = target_cfg.get("enabled", True) and bool(target_cfg.get("area"))
         now = time.time()
 
         for key_name in ["e", "r", "f"]:
@@ -484,6 +560,10 @@ class SkillController:
                 break
             k_info = hunt_cfg.get(key_name, {})
             if not k_info.get("enabled", False):
+                continue
+
+            # If target monster is required and target is empty, hold R (Serang)
+            if key_name == "r" and require_target and not has_target:
                 continue
 
             interval = max(0.1, float(k_info.get("interval", 1.0)))
@@ -502,7 +582,7 @@ class SkillController:
                 except Exception:
                     pass
 
-    def _run_buff_tick(self, buffs_cfg: Dict[str, Any]):
+    def _run_buff_tick(self, buffs_cfg: Dict[str, Any], client_img: Optional[Image.Image] = None):
         """Monitors floating buff area and recasts buffs that have disappeared."""
         if not self.screen:
             return
@@ -510,7 +590,8 @@ class SkillController:
         if not buff_list:
             return
 
-        client_img = self.screen.capture_client()
+        if client_img is None:
+            client_img = self.screen.capture_client()
         if client_img is None:
             return
 
@@ -568,31 +649,56 @@ class SkillController:
                     continue
 
                 now = time.time()
+                client_img = None
+                if self.screen:
+                    client_img = self.screen.capture_client()
 
-                # 1. Basic Hunt Keys (E: Target, R: Attack, F: Loot)
+                # 1. Target Monster Check
+                target_cfg = cfg.get("target_monster", DEFAULT_SKILL_CONFIG.get("target_monster", {}))
+                require_target = target_cfg.get("enabled", True)
+                area = target_cfg.get("area")
+
+                has_target = True
+                if require_target and area and "x" in area:
+                    has_target = self.has_target_monster(client_img, target_cfg)
+                    with self._lock:
+                        self.has_target = has_target
+                else:
+                    with self._lock:
+                        self.has_target = True
+
+                # 2. Basic Hunt Keys (E: Target, R: Attack, F: Loot)
                 if now - last_hunt_tick >= 0.05:
-                    self._run_hunt_keys_tick(cfg)
+                    self._run_hunt_keys_tick(cfg, has_target=has_target)
                     last_hunt_tick = now
 
-                # 2. Auto Buff Check & Recast
+                # 3. Auto Buff Check & Recast
                 buffs_cfg = cfg.get("buffs", {})
                 buff_interval = float(buffs_cfg.get("check_interval_sec", 0.5))
                 if buffs_cfg.get("enabled", True) and (now - last_buff_tick >= buff_interval):
-                    self._run_buff_tick(buffs_cfg)
+                    self._run_buff_tick(buffs_cfg, client_img=client_img)
                     last_buff_tick = now
 
-                # 3. Main Skill Execution (Smart Combo or Timer Interval)
+                # 4. If Target Monster is required and NO TARGET is present -> HOLD SKILLS!
+                if require_target and area and "x" in area and not has_target:
+                    if now - self.last_target_log_time >= 4.0:
+                        self.log("⏸️ [Target Monster] Target monster kosong / hilang. Menahan skill sampai ada target baru...")
+                        self.last_target_log_time = now
+                    time.sleep(0.08)
+                    continue
+
+                # 5. Main Skill Execution (Smart Combo or Timer Interval)
                 mode = cfg.get("mode", "smart_combo")
 
                 if mode == "smart_combo":
-                    self._run_smart_combo_tick(cfg)
+                    self._run_smart_combo_tick(cfg, client_img=client_img)
                 else:
                     self._run_timer_interval_tick()
 
             except Exception as e:
                 time.sleep(0.1)
 
-    def _run_smart_combo_tick(self, cfg: Dict[str, Any]):
+    def _run_smart_combo_tick(self, cfg: Dict[str, Any], client_img: Optional[Image.Image] = None):
         """
         Executes one iteration of Smart Combo:
         Evaluates skills sequentially in combo order (1 -> 2 -> 3 -> 4).
@@ -606,7 +712,8 @@ class SkillController:
 
         interval = float(cfg.get("combo_check_interval_sec", 0.05))
 
-        client_img = self.screen.capture_client()
+        if client_img is None:
+            client_img = self.screen.capture_client()
         if client_img is None:
             time.sleep(interval)
             return

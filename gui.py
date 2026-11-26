@@ -2018,6 +2018,83 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT)
 
         # -------------------------------------------------------------
+        # Target Monster Awareness (Hold skill when no target)
+        # -------------------------------------------------------------
+        tgt_cfg = skill_cfg.get("target_monster") or DEFAULT_SKILL_CONFIG.get("target_monster", {})
+        self.var_target_monster_enabled = tk.BooleanVar(value=tgt_cfg.get("enabled", True))
+
+        target_frame = tk.LabelFrame(
+            container,
+            text=" 🎯 Deteksi Target Monster (Cegah Spam Skill saat Target Kosong) ",
+            bg="#161b22",
+            fg="#e3b341",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=6,
+            relief="ridge",
+            bd=1
+        )
+        target_frame.pack(fill=tk.X, pady=(0, 6))
+
+        tgt_inner = tk.Frame(target_frame, bg="#161b22")
+        tgt_inner.pack(fill=tk.X)
+
+        tk.Checkbutton(
+            tgt_inner,
+            text="Tahan Skill jika Target Kosong (Hanya serang saat ada target)",
+            variable=self.var_target_monster_enabled,
+            bg="#161b22",
+            fg="#58a6ff",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 8, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Button(
+            tgt_inner,
+            text="🎯 Kalibrasi Kotak Target Monster",
+            font=("Segoe UI", 8, "bold"),
+            bg="#8957e5",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.calibrate_target_monster_area
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.lbl_target_monster_info = tk.Label(
+            tgt_inner,
+            text="Kotak: -",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Consolas", 8)
+        )
+        self.lbl_target_monster_info.pack(side=tk.LEFT, padx=(0, 10))
+        self._update_target_monster_label()
+
+        tk.Button(
+            tgt_inner,
+            text="🔍 Test Cek Target Sekarang",
+            font=("Segoe UI", 8),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self._test_detect_target_monster
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.lbl_target_monster_live = tk.Label(
+            tgt_inner,
+            text="[STOPPED]",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Segoe UI", 8, "bold")
+        )
+        self.lbl_target_monster_live.pack(side=tk.RIGHT, padx=4)
+
+        # -------------------------------------------------------------
         # Basic Hunting Actions (E, R, F)
         # -------------------------------------------------------------
         hunt_keys_cfg = skill_cfg.get("hunt_keys") or DEFAULT_SKILL_CONFIG.get("hunt_keys", {})
@@ -2847,6 +2924,73 @@ class FarmerGUI(tk.Tk):
         messagebox.showinfo("Hasil Cek Cooldown Real-time", f"Hasil deteksi saat ini:\n\n{res_text}")
 
     # =========================================================================
+    # Target Monster Detection Handlers
+    # =========================================================================
+    def _update_target_monster_label(self):
+        area = self.config.get("auto_skill", {}).get("target_monster", {}).get("area", {})
+        if area and "x" in area:
+            self.lbl_target_monster_info.config(
+                text=f"Kotak: X={area.get('x')} Y={area.get('y')} W={area.get('w')} H={area.get('h')}",
+                fg="#3fb950"
+            )
+        else:
+            self.lbl_target_monster_info.config(
+                text="Kotak: Belum Dikalibrasi",
+                fg="#f85149"
+            )
+
+    def calibrate_target_monster_area(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(10, x2 - x1)
+            h = max(10, y2 - y1)
+            if "auto_skill" not in self.config.data:
+                self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
+            tgt_cfg = self.config.data["auto_skill"].setdefault("target_monster", dict(DEFAULT_SKILL_CONFIG["target_monster"]))
+            tgt_cfg["area"] = {
+                "x": x1, "y": y1, "w": w, "h": h
+            }
+            self.config.save()
+            self._update_target_monster_label()
+            self.append_log(f"🎯 [Target Monster] Kotak target monster dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            messagebox.showinfo(
+                "Kalibrasi Berhasil",
+                f"Kotak Target Monster berhasil disimpan!\nKoordinat: X={x1}, Y={y1}, W={w}, H={h}\n\n"
+                f"Macro akan memonitor HP bar dan status target di area ini agar tidak spam skill saat target kosong."
+            )
+
+        AreaSelectorWindow(self, "Pilih Kotak Target Monster (Tempat Nama & HP Monster Muncul di Layar)", 1, 1, client_img, on_saved)
+
+    def _test_detect_target_monster(self):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        tgt_cfg = self.config.data.get("auto_skill", {}).get("target_monster", {})
+        area = tgt_cfg.get("area")
+        if not area or "x" not in area:
+            messagebox.showwarning("Perhatian", "Area Target Monster belum dikalibrasi.\nSilakan klik '🎯 Kalibrasi Kotak Target Monster' terlebih dahulu.")
+            return
+
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+        if client_img is None:
+            messagebox.showerror("Error", "Gagal mengambil capture layar game.")
+            return
+
+        is_targeted = self.bot.skills.has_target_monster(client_img, tgt_cfg)
+        if is_targeted:
+            res_str = "🎯 TARGET MONSTER TERDETEKSI!\n\nStatus: HP Bar / Frame Target Monster AKTIF.\nSkill akan dieksekusi normal saat kondisi ini."
+            self.append_log("🎯 [Test Target Monster]: TARGET TERDETEKSI (HP Bar Monster Aktif).")
+            messagebox.showinfo("Hasil Cek Target Monster", res_str)
+        else:
+            res_str = "⚪ TARGET KOSONG / HILANG.\n\nStatus: Tidak ada target monster yang terdeteksi.\nSkill akan di-HOLD (tidak spam) sampai target monster baru muncul."
+            self.append_log("⚪ [Test Target Monster]: TARGET KOSONG (Skill di-HOLD).")
+            messagebox.showinfo("Hasil Cek Target Monster", res_str)
+
+    # =========================================================================
     # Auto Buff (Floating Bar) Handlers
     # =========================================================================
     def _update_floating_buff_label(self):
@@ -3245,6 +3389,11 @@ class FarmerGUI(tk.Tk):
             except ValueError:
                 self.config.data["auto_skill"]["combo_check_interval_sec"] = 0.05
 
+        # Save target monster awareness
+        if hasattr(self, "var_target_monster_enabled"):
+            tgt_cfg = self.config.data["auto_skill"].setdefault("target_monster", dict(DEFAULT_SKILL_CONFIG.get("target_monster", {})))
+            tgt_cfg["enabled"] = self.var_target_monster_enabled.get()
+
         # Save hunt keys (E, R, F)
         if hasattr(self, "var_hunt_e_en"):
             try:
@@ -3368,6 +3517,8 @@ class FarmerGUI(tk.Tk):
             self.lbl_hunt_e_cd.config(text="-", fg="#8b949e")
             self.lbl_hunt_r_cd.config(text="-", fg="#8b949e")
             self.lbl_hunt_f_cd.config(text="-", fg="#8b949e")
+        if hasattr(self, "lbl_target_monster_live"):
+            self.lbl_target_monster_live.config(text="[RESET]", fg="#8b949e")
         if hasattr(self, "_combo_status_labels"):
             for lbl in self._combo_status_labels:
                 lbl.config(text="[RESET]", fg="#8b949e")
@@ -3379,6 +3530,19 @@ class FarmerGUI(tk.Tk):
         try:
             is_running = self.bot.skills.is_running
             now = time.time()
+
+            # Target Monster live status indicator
+            if hasattr(self, "lbl_target_monster_live"):
+                if not is_running:
+                    self.lbl_target_monster_live.config(text="[STOPPED]", fg="#8b949e")
+                elif hasattr(self, "var_target_monster_enabled") and not self.var_target_monster_enabled.get():
+                    self.lbl_target_monster_live.config(text="[DETEKSI NONAKTIF]", fg="#8b949e")
+                else:
+                    has_tgt = getattr(self.bot.skills, "has_target", False)
+                    if has_tgt:
+                        self.lbl_target_monster_live.config(text="🎯 [TARGET AKTIF]", fg="#3fb950")
+                    else:
+                        self.lbl_target_monster_live.config(text="⏸️ [HOLD - MENUNGGU TARGET]", fg="#e3b341")
 
             # Hunt keys (E, R, F) countdown updates
             if hasattr(self, "lbl_hunt_e_cd"):

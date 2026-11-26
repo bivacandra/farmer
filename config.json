@@ -139,6 +139,46 @@
         "brightness_ratio_threshold": 0.7
       }
     ],
+    "hunt_keys": {
+      "e": {
+        "enabled": false,
+        "interval": 1.5,
+        "desc": "Target Monster (E)"
+      },
+      "r": {
+        "enabled": false,
+        "interval": 0.8,
+        "desc": "Serang Monster (R)"
+      },
+      "f": {
+        "enabled": false,
+        "interval": 1.0,
+        "desc": "Pick Loot Drop (F)"
+      }
+    },
+    "buffs": {
+      "enabled": true,
+      "floating_area": {
+        "x": 0,
+        "y": 61,
+        "w": 220,
+        "h": 35
+      },
+      "check_interval_sec": 0.5,
+      "list": [
+        {
+          "id": "buff_1795705918102",
+          "enabled": true,
+          "name": "Buff 1",
+          "slot_str": "Bawah: Slot F1",
+          "slot_index": 1,
+          "hotkey": "f1",
+          "recast_cooldown_sec": 5.0,
+          "cast_delay_sec": 1.0,
+          "template_path": "assets/skills/buff_buff_1795705918102_1795706053.png"
+        }
+      ]
+    },
     "keys": {
       "1": {
         "enabled": false,
@@ -233,33 +273,15 @@
         "interval": 10.0
       }
     },
-    "hunt_keys": {
-      "e": {
-        "enabled": true,
-        "interval": 1.5,
-        "desc": "Target Monster (E)"
-      },
-      "r": {
-        "enabled": true,
-        "interval": 0.8,
-        "desc": "Serang Monster (R)"
-      },
-      "f": {
-        "enabled": true,
-        "interval": 1.0,
-        "desc": "Pick Loot Drop (F)"
-      }
-    },
-    "buffs": {
+    "target_monster": {
       "enabled": true,
-      "floating_area": {
-        "x": 10,
-        "y": 10,
-        "w": 200,
+      "area": {
+        "x": 400,
+        "y": 20,
+        "w": 250,
         "h": 50
       },
-      "check_interval_sec": 0.5,
-      "list": []
+      "min_red_pixels": 25
     }
   },
   "auto_pot": {
