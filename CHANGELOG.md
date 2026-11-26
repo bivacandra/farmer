@@ -5,6 +5,16 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.2.3] - 2026-11-26
+
+### 🛠️ Fixed & Improved
+- **Pembedaan Warna & Palet pada Template Matcher (Color Fidelity & Histogram Weighting)**:
+  - Menyelesaikan masalah false-positive di mana item yang memiliki siluet/bentuk 3D identik namun berbeda warna/tier (seperti Medali Perunggu vs Medali Emas, Pustika vs Ziva Pustika, Potion merah vs biru) terdeteksi sama saat salah satu di-blacklist.
+  - Menambahkan pembobotan `calc_color_fidelity` yang memeriksa perbedaan per-kanal RGB (fokus area 75% grafik item) dan irisan histogram warna 32-bin.
+  - Menyelaraskan pemotongan batas slot (`inner_slot` dan `inner_icon`) secara simetris untuk menjaga ketajaman detail ikon dan akurasi pergeseran posisi (jitter/shift 1-2px).
+
+---
+
 ## [v1.2.2] - 2026-11-26
 
 ### 🛠️ Fixed

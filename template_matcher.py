@@ -200,10 +200,57 @@ class TemplateMatcher:
 
         return best_match
 
+    @staticmethod
+    def calc_color_fidelity(slot_img: Image.Image, icon_img: Image.Image) -> float:
+        """
+        Calculates color fidelity (0.0 to 1.0) between slot image and template icon.
+        Distinguishes between items that share the exact same 3D/2D shape but have
+        different color palettes/tiers (e.g. Bronze vs Gold medals, Red vs Blue potions,
+        different tier scrolls/ores).
+        """
+        from PIL import ImageStat
+        w, h = slot_img.size
+        icon_resized = icon_img.resize((w, h), Image.Resampling.BILINEAR)
+
+        # Focus on center 75% where the item graphic resides (avoids slot borders)
+        pad_w = max(1, int(w * 0.12))
+        pad_h = max(1, int(h * 0.12))
+        c_slot = slot_img.crop((pad_w, pad_h, max(pad_w + 1, w - pad_w), max(pad_h + 1, h - pad_h)))
+        c_icon = icon_resized.crop((pad_w, pad_h, max(pad_w + 1, w - pad_w), max(pad_h + 1, h - pad_h)))
+
+        st_slot = ImageStat.Stat(c_slot)
+        st_icon = ImageStat.Stat(c_icon)
+
+        ch_diffs = [abs(a - b) for a, b in zip(st_slot.mean[:3], st_icon.mean[:3])]
+        avg_diff = sum(ch_diffs) / 3.0
+        max_diff = max(ch_diffs)
+
+        # 32-bin per channel histogram intersection
+        hA = c_slot.histogram()
+        hB = c_icon.histogram()
+        sim_channels = []
+        for c in range(3):
+            rawA = [sum(hA[c * 256 + i * 8 : c * 256 + (i + 1) * 8]) for i in range(32)]
+            rawB = [sum(hB[c * 256 + i * 8 : c * 256 + (i + 1) * 8]) for i in range(32)]
+            sA = sum(rawA) or 1
+            sB = sum(rawB) or 1
+            sim_c = sum(min(a / sA, b / sB) for a, b in zip(rawA, rawB))
+            sim_channels.append(sim_c)
+        hist_sim = sum(sim_channels) / 3.0
+
+        # Fidelity formula: drops sharply when color tone differs significantly
+        fidelity = max(0.0, 1.0 - (avg_diff / 18.0))
+        if max_diff > 22.0:
+            fidelity *= max(0.0, 1.0 - (max_diff - 22.0) / 15.0)
+
+        fidelity *= (0.5 + 0.5 * hist_sim)
+        return float(fidelity)
+
     def match_item_in_whitelist(self, slot_crop: Image.Image, whitelist_dir: Optional[Path] = None, threshold: Optional[float] = None) -> Tuple[bool, Optional[str], float]:
         """
         Compares slot image against all icons in whitelist_dir (defaults to assets/merchant_blacklist/).
-        Uses sliding window matching to tolerate 1-4px calibration shifts and jitter.
+        Uses sliding window matching to tolerate 1-4px calibration shifts and jitter,
+        combined with color fidelity weighting to distinguish recolored item variants.
         Returns (is_whitelisted, item_name, confidence).
         """
         target_dir = whitelist_dir if whitelist_dir is not None else self.whitelist_dir
@@ -229,14 +276,17 @@ class TemplateMatcher:
                 if iw < 4 or ih < 4:
                     continue
 
+                inner_icon = icon_img.crop((2, 2, max(3, iw - 2), max(3, ih - 2))) if (iw >= 30 and ih >= 30) else icon_img
+                iiw, iih = inner_icon.size
+
                 if HAS_CV2:
                     slot_cv = self._pil_to_cv2(inner_slot)
                     scores = []
 
-                    # Scale A: Sliding window (needle smaller by 6px to allow sliding search across jitter)
-                    target_w = max(10, sw_in - 6)
-                    target_h = max(10, sh_in - 6)
-                    icon_small = icon_img.resize((target_w, target_h), Image.Resampling.BILINEAR)
+                    # Scale A: Sliding window (needle smaller by 4px to allow sliding search across jitter)
+                    target_w = max(10, sw_in - 4)
+                    target_h = max(10, sh_in - 4)
+                    icon_small = inner_icon.resize((target_w, target_h), Image.Resampling.BILINEAR)
                     icon_cv_small = self._pil_to_cv2(icon_small)
 
                     if slot_cv.shape[0] >= icon_cv_small.shape[0] and slot_cv.shape[1] >= icon_cv_small.shape[1]:
@@ -245,29 +295,33 @@ class TemplateMatcher:
                         scores.append(float(max_v))
 
                     # Scale B: Exact size overlay
-                    icon_exact = icon_img.resize((sw_in, sh_in), Image.Resampling.BILINEAR)
+                    icon_exact = inner_icon.resize((sw_in, sh_in), Image.Resampling.BILINEAR)
                     icon_cv_exact = self._pil_to_cv2(icon_exact)
                     res_exact = cv2.matchTemplate(slot_cv, icon_cv_exact, cv2.TM_CCOEFF_NORMED)
                     scores.append(float(res_exact[0][0]))
 
                     # Scale C: Unresized center needle (preserves 100% original texture & edge sharpness)
-                    if iw >= 10 and ih >= 10:
-                        pad = 3
-                        icon_needle = icon_img.crop((pad, pad, max(pad + 4, iw - pad), max(pad + 4, ih - pad)))
+                    if iiw >= 10 and iih >= 10:
+                        pad = 2
+                        icon_needle = inner_icon.crop((pad, pad, max(pad + 4, iiw - pad), max(pad + 4, iih - pad)))
                         icon_cv_needle = self._pil_to_cv2(icon_needle)
                         if slot_cv.shape[0] >= icon_cv_needle.shape[0] and slot_cv.shape[1] >= icon_cv_needle.shape[1]:
                             res_needle = cv2.matchTemplate(slot_cv, icon_cv_needle, cv2.TM_CCOEFF_NORMED)
                             _, max_v_needle, _, _ = cv2.minMaxLoc(res_needle)
                             scores.append(float(max_v_needle))
 
-                    score = max(scores) if scores else 0.0
+                    structural_score = max(scores) if scores else 0.0
                 else:
                     from PIL import ImageChops, ImageStat
-                    icon_exact = icon_img.resize(inner_slot.size, Image.Resampling.BILINEAR)
+                    icon_exact = inner_icon.resize(inner_slot.size, Image.Resampling.BILINEAR)
                     diff = ImageChops.difference(inner_slot, icon_exact)
                     stat = ImageStat.Stat(diff)
                     mae = sum(stat.mean) / 3.0
-                    score = max(0.0, 1.0 - (mae / 255.0))
+                    structural_score = max(0.0, 1.0 - (mae / 255.0))
+
+                # Weight structural match score with color fidelity (rejects recolored items)
+                color_fidelity = self.calc_color_fidelity(inner_slot, inner_icon)
+                score = structural_score * color_fidelity
 
                 if score > best_score:
                     best_score = score
@@ -275,7 +329,7 @@ class TemplateMatcher:
             except Exception as e:
                 print(f"[TemplateMatcher] Error matching {icon_path}: {e}")
 
-        # Toleransi: jika skor sama dengan threshold (misal 0.70 == 0.70) atau lebih -> Cocok (JANGAN dieksekusi)
+        # Toleransi: jika skor sama dengan threshold (misal 0.50 == 0.50) atau lebih -> Cocok (JANGAN dieksekusi)
         # Hanya dieksekusi jika skor benar-benar kurang dari threshold
         is_match = bool(round(best_score, 2) >= round(threshold, 2) or best_score >= (threshold - 1e-4))
         return is_match, best_name, float(best_score)
