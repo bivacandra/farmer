@@ -3780,6 +3780,7 @@ class FarmerGUI(tk.Tk):
         pot_cfg = self.config.get("auto_pot", DEFAULT_POT_CONFIG)
         hp_cfg = pot_cfg.get("hp", DEFAULT_POT_CONFIG["hp"])
         tp_cfg = pot_cfg.get("tp", DEFAULT_POT_CONFIG["tp"])
+        prot_cfg = pot_cfg.get("protect", DEFAULT_POT_CONFIG.get("protect", {}))
 
         # 1. Top Control Header
         top_frame = tk.Frame(container, bg="#161b22", padx=12, pady=10, relief="ridge", bd=1)
@@ -3950,7 +3951,60 @@ class FarmerGUI(tk.Tk):
         self.lbl_hp_count = tk.Label(hp_stat, text="Total Pot Diminum: 0", font=("Segoe UI", 9), bg="#161b22", fg="#c9d1d9")
         self.lbl_hp_count.pack(side=tk.RIGHT)
 
-        # 3. TP Section
+        # 3. Emergency Protect / Heal Skill Section (Uses same HP Calibration)
+        prot_frame = tk.LabelFrame(container, text=" 🛡️ Trigger Skill Protect / Heal Darurat (Gunakan Bar HP) ", bg="#222428", fg="#e3b341", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
+        prot_frame.pack(fill=tk.X, pady=6)
+
+        prot_desc = tk.Label(
+            prot_frame,
+            text="💡 Terhubung dengan kalibrasi HP di atas. Saat HP mencapai batas darurat, makro otomatis menekan skill protect/heal.",
+            font=("Segoe UI", 8, "italic"),
+            bg="#222428",
+            fg="#7ee787"
+        )
+        prot_desc.pack(anchor=tk.W, pady=(0, 6))
+
+        prot_ctrl = tk.Frame(prot_frame, bg="#222428")
+        prot_ctrl.pack(fill=tk.X, pady=4)
+
+        self.var_protect_enabled = tk.BooleanVar(value=prot_cfg.get("enabled", False))
+        tk.Checkbutton(
+            prot_ctrl,
+            text="Aktifkan Protect / Heal",
+            variable=self.var_protect_enabled,
+            bg="#222428",
+            fg="#e1e2e6",
+            selectcolor="#0d1117",
+            activebackground="#222428",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 14))
+
+        tk.Label(prot_ctrl, text="Trigger Threshold (%):", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_protect_threshold = tk.Entry(prot_ctrl, width=5, bg="#161b22", fg="#e3b341", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_protect_threshold.insert(0, str(prot_cfg.get("threshold_pct", 30)))
+        self.entry_protect_threshold.pack(side=tk.LEFT, padx=(4, 16))
+
+        tk.Label(prot_ctrl, text="Hotkey Skill:", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.combo_protect_key = ttk.Combobox(prot_ctrl, values=valid_keys, width=5, state="readonly", font=("Segoe UI", 9))
+        current_prot_k = str(prot_cfg.get("key", "1")).lower()
+        self.combo_protect_key.set(current_prot_k if current_prot_k in valid_keys else "1")
+        self.combo_protect_key.pack(side=tk.LEFT, padx=(4, 16))
+
+        tk.Label(prot_ctrl, text="Cooldown Skill (s):", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_protect_cooldown = tk.Entry(prot_ctrl, width=5, bg="#161b22", fg="#58a6ff", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_protect_cooldown.insert(0, str(prot_cfg.get("cooldown_sec", 10.0)))
+        self.entry_protect_cooldown.pack(side=tk.LEFT, padx=(4, 0))
+
+        prot_stat = tk.Frame(prot_frame, bg="#161b22", padx=8, pady=4)
+        prot_stat.pack(fill=tk.X, pady=(6, 0))
+
+        self.lbl_protect_status = tk.Label(prot_stat, text="Protect: Standby", font=("Segoe UI", 9, "bold"), bg="#161b22", fg="#8b949e")
+        self.lbl_protect_status.pack(side=tk.LEFT)
+
+        self.lbl_protect_count = tk.Label(prot_stat, text="Total Skill Keluar: 0", font=("Segoe UI", 9), bg="#161b22", fg="#c9d1d9")
+        self.lbl_protect_count.pack(side=tk.RIGHT)
+
+        # 4. TP Section
         tp_box = tp_cfg.get("box", {"x": 4, "y": 69, "w": 214, "h": 14})
         tp_frame = tk.LabelFrame(container, text=" 💙 Pengaturan TP/MP Auto Pot (Prana / Mana) ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
         tp_frame.pack(fill=tk.X, pady=6)
@@ -4075,9 +4129,12 @@ class FarmerGUI(tk.Tk):
             interval = max(0.05, float(self.entry_pot_interval.get().strip()))
             hp_thresh = max(1.0, min(99.0, float(self.entry_hp_threshold.get().strip())))
             tp_thresh = max(1.0, min(99.0, float(self.entry_tp_threshold.get().strip())))
+            prot_thresh = max(1.0, min(99.0, float(self.entry_protect_threshold.get().strip())))
+            prot_cooldown = max(0.5, float(self.entry_protect_cooldown.get().strip()))
 
             hp_k = self.combo_hp_key.get().strip().lower() or "f9"
             tp_k = self.combo_tp_key.get().strip().lower() or "f10"
+            prot_k = self.combo_protect_key.get().strip().lower() or "1"
 
             if "auto_pot" not in self.config.data:
                 self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
@@ -4092,6 +4149,13 @@ class FarmerGUI(tk.Tk):
             self.config.data["auto_pot"]["hp"]["threshold_pct"] = hp_thresh
             self.config.data["auto_pot"]["hp"]["key"] = hp_k
             self.config.data["auto_pot"]["hp"]["cooldown_sec"] = cooldown
+
+            if "protect" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["protect"] = dict(DEFAULT_POT_CONFIG.get("protect", {}))
+            self.config.data["auto_pot"]["protect"]["enabled"] = self.var_protect_enabled.get()
+            self.config.data["auto_pot"]["protect"]["threshold_pct"] = prot_thresh
+            self.config.data["auto_pot"]["protect"]["key"] = prot_k
+            self.config.data["auto_pot"]["protect"]["cooldown_sec"] = prot_cooldown
 
             if "tp" not in self.config.data["auto_pot"]:
                 self.config.data["auto_pot"]["tp"] = dict(DEFAULT_POT_CONFIG["tp"])
@@ -4270,7 +4334,21 @@ class FarmerGUI(tk.Tk):
         except ValueError:
             tp_thresh = 50.0
 
+        try:
+            prot_thresh = float(self.entry_protect_threshold.get().strip() or "30")
+        except ValueError:
+            prot_thresh = 30.0
+
         if hp_pct is not None:
+            if hp_pct <= prot_thresh and getattr(self, "var_protect_enabled", tk.BooleanVar(value=False)).get():
+                prot_color = "#f85149"
+                prot_tag = "[KRITIS - TRIGGER PROTECT/HEAL]"
+            else:
+                prot_color = "#7ee787" if hp_pct > prot_thresh else "#e3b341"
+                prot_tag = "[Standby]"
+            if hasattr(self, "lbl_protect_status"):
+                self.lbl_protect_status.config(text=f"🛡️ Protect/Heal Status: {prot_tag}", fg=prot_color)
+
             if hp_pct <= hp_thresh:
                 color = "#f85149"
                 tag = "[MINUM POT]"
@@ -4283,6 +4361,8 @@ class FarmerGUI(tk.Tk):
             self.lbl_hp_status.config(text=f"❤️ HP Saat Ini: {hp_pct:.1f}% {tag}", fg=color)
         else:
             self.lbl_hp_status.config(text="❤️ HP: Tidak terbaca", fg="#8b949e")
+            if hasattr(self, "lbl_protect_status"):
+                self.lbl_protect_status.config(text="🛡️ Protect/Heal: Standby", fg="#8b949e")
 
         if tp_pct is not None:
             if tp_pct <= tp_thresh:
@@ -4315,6 +4395,9 @@ class FarmerGUI(tk.Tk):
 
             self.lbl_hp_count.config(text=f"Total Diminum: {hp_cnt}")
             self.lbl_tp_count.config(text=f"Total Diminum: {tp_cnt}")
+            if hasattr(self, "lbl_protect_count"):
+                prot_cnt = getattr(self.bot.pots, "protect_skill_count", 0)
+                self.lbl_protect_count.config(text=f"Total Skill Keluar: {prot_cnt}")
 
             if is_running and hp_pct is not None and tp_pct is not None:
                 self._update_pot_labels_with_values(hp_pct, tp_pct)

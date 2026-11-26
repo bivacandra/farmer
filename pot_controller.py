@@ -28,6 +28,12 @@ DEFAULT_POT_CONFIG: Dict[str, Any] = {
         "key": "f10",
         "cooldown_sec": 1.0,
         "box": {"x": 4, "y": 69, "w": 214, "h": 14}
+    },
+    "protect": {
+        "enabled": False,
+        "threshold_pct": 30,
+        "key": "1",
+        "cooldown_sec": 10.0
     }
 }
 
@@ -47,8 +53,10 @@ class PotController:
         # Runtime trackers
         self.last_hp_pot_time: float = 0.0
         self.last_tp_pot_time: float = 0.0
+        self.last_protect_skill_time: float = 0.0
         self.hp_pot_count: int = 0
         self.tp_pot_count: int = 0
+        self.protect_skill_count: int = 0
         self.current_hp_pct: Optional[float] = None
         self.current_tp_pct: Optional[float] = None
         self.last_read_time: float = 0.0
@@ -211,6 +219,7 @@ class PotController:
         with self._lock:
             self.hp_pot_count = 0
             self.tp_pot_count = 0
+            self.protect_skill_count = 0
 
     def start(self):
         with self._lock:
@@ -219,9 +228,10 @@ class PotController:
             self.is_running = True
             self.last_hp_pot_time = 0.0
             self.last_tp_pot_time = 0.0
+            self.last_protect_skill_time = 0.0
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
-            self.log("🧪 [Auto Pot] Pemantau HP & TP aktif dan berjalan...")
+            self.log("🧪 [Auto Pot] Pemantau HP, TP & Protect/Heal aktif dan berjalan...")
 
     def stop(self):
         with self._lock:
@@ -241,6 +251,7 @@ class PotController:
                 interval = float(cfg.get("check_interval_sec", 0.20))
                 hp_cfg = cfg.get("hp", {})
                 tp_cfg = cfg.get("tp", {})
+                prot_cfg = cfg.get("protect", {})
 
                 client_img = self.screen.capture_client()
                 if client_img is None:
@@ -277,7 +288,27 @@ class PotController:
                             except Exception as e:
                                 self.log(f"🧪 [Auto Pot] Error menekan Pot HP '{hp_key}': {e}")
 
-                # 2. TP/MP Auto Pot Check
+                # 2. Protect / Emergency Heal Skill Trigger (Calibrated to same HP bar)
+                if prot_cfg.get("enabled", False) and hp_pct is not None:
+                    prot_thresh = float(prot_cfg.get("threshold_pct", 30))
+                    prot_cooldown = float(prot_cfg.get("cooldown_sec", 10.0))
+                    prot_key = str(prot_cfg.get("key", "1")).strip().lower()
+
+                    if 0.5 <= hp_pct <= prot_thresh:
+                        if now - self.last_protect_skill_time >= prot_cooldown:
+                            try:
+                                self.input.press_key(prot_key)
+                                self.last_protect_skill_time = now
+                                with self._lock:
+                                    self.protect_skill_count += 1
+                                self.log(
+                                    f"🛡️ [Auto Pot - Protect/Heal] HP kritis di bawah {prot_thresh:.0f}% ({hp_pct:.1f}%). "
+                                    f"Trigger Skill Protect/Heal '{prot_key.upper()}' (Total: {self.protect_skill_count})."
+                                )
+                            except Exception as e:
+                                self.log(f"🛡️ [Auto Pot] Error menekan Skill Protect '{prot_key}': {e}")
+
+                # 3. TP/MP Auto Pot Check
                 if tp_cfg.get("enabled", True) and tp_pct is not None:
                     tp_thresh = float(tp_cfg.get("threshold_pct", 50))
                     tp_cooldown = float(tp_cfg.get("cooldown_sec", 1.0))

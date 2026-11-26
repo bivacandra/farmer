@@ -120,6 +120,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "area": {"x": 400, "y": 20, "w": 250, "h": 50},
             "min_red_pixels": 25
         },
+        "hunt_keys": {
+            "e": {"enabled": True, "interval": 1.5, "desc": "Target Monster (E)"},
+            "r": {"enabled": True, "interval": 0.8, "desc": "Serang Monster (R)"},
+            "f": {"enabled": True, "interval": 1.0, "desc": "Pick Loot Drop (F)"}
+        },
         "buffs": {
             "enabled": True,
             "floating_area": {"x": 10, "y": 10, "w": 200, "h": 50},
@@ -169,6 +174,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "key": "f10",
             "cooldown_sec": 1.0,
             "box": {"x": 4, "y": 69, "w": 214, "h": 14}
+        },
+        "protect": {
+            "enabled": False,
+            "threshold_pct": 30,
+            "key": "1",
+            "cooldown_sec": 10.0
         }
     }
 }
