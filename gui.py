@@ -15,6 +15,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from typing import Optional, Tuple, Dict, Any, List, Callable
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
