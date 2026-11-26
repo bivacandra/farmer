@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.3.0"
+APP_VERSION = "v1.4.0"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ui": {
