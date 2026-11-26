@@ -101,6 +101,17 @@
   "auto_skill": {
     "enabled": false,
     "sync_with_auto_hunt": true,
+    "mode": "smart_combo",
+    "combo_check_interval_sec": 0.05,
+    "quickslot_bar": {
+      "x": 300,
+      "y": 700,
+      "w": 380,
+      "h": 38,
+      "cols": 10,
+      "rows": 1
+    },
+    "combo_list": [],
     "keys": {
       "1": {
         "enabled": false,
@@ -193,6 +204,35 @@
       "f10": {
         "enabled": false,
         "interval": 10.0
+      }
+    }
+  },
+  "auto_pot": {
+    "enabled": true,
+    "sync_with_auto_hunt": true,
+    "check_interval_sec": 0.2,
+    "hp": {
+      "enabled": true,
+      "threshold_pct": 70.0,
+      "key": "2",
+      "cooldown_sec": 2.0,
+      "box": {
+        "x": 0,
+        "y": 20,
+        "w": 221,
+        "h": 23
+      }
+    },
+    "tp": {
+      "enabled": true,
+      "threshold_pct": 70.0,
+      "key": "0",
+      "cooldown_sec": 2.0,
+      "box": {
+        "x": 0,
+        "y": 36,
+        "w": 221,
+        "h": 22
       }
     }
   }

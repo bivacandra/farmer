@@ -31,6 +31,7 @@ from farmer_bot import FarmerBot
 from area_selector import AreaSelectorWindow
 from auth import verify_password, hash_password
 from pot_controller import PotController, DEFAULT_POT_CONFIG
+from skill_controller import SkillController, DEFAULT_SKILL_CONFIG
 
 try:
     import keyboard
@@ -1898,7 +1899,7 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=6)
 
     # =========================================================================
-    # TAB 6: Auto Skill
+    # TAB 6: Auto Skill (Smart Combo & Timer Interval)
     # =========================================================================
     def _build_skill_tab(self):
         container = tk.Frame(self.tab_skill, bg="#222428", padx=16, pady=12)
@@ -1907,13 +1908,15 @@ class FarmerGUI(tk.Tk):
         top_frame = tk.Frame(container, bg="#161b22", padx=12, pady=10, relief="ridge", bd=1)
         top_frame.pack(fill=tk.X, pady=(0, 10))
 
-        skill_cfg = self.config.get("auto_skill", {})
+        skill_cfg = self.config.get("auto_skill", DEFAULT_SKILL_CONFIG)
         self.var_skill_enabled = tk.BooleanVar(value=skill_cfg.get("enabled", True))
         self.var_skill_sync_hunt = tk.BooleanVar(value=skill_cfg.get("sync_with_auto_hunt", True))
+        self.var_skill_mode = tk.StringVar(value=skill_cfg.get("mode", "smart_combo"))
+        self.var_skill_combo_interval = tk.StringVar(value=str(skill_cfg.get("combo_check_interval_sec", 0.05)))
 
         tk.Checkbutton(
             top_frame,
-            text="⚡ Aktifkan Fitur Auto Skill (Otomatis spam skill sesuai timer detik)",
+            text="⚡ Aktifkan Fitur Auto Skill",
             variable=self.var_skill_enabled,
             bg="#161b22",
             fg="#58a6ff",
@@ -1933,10 +1936,50 @@ class FarmerGUI(tk.Tk):
             activebackground="#161b22",
             activeforeground="#58a6ff",
             font=("Segoe UI", 9)
-        ).pack(anchor=tk.W, pady=(4, 0))
+        ).pack(anchor=tk.W, pady=(2, 6))
+
+        # Mode Selection
+        mode_box = tk.Frame(top_frame, bg="#0d1117", padx=8, pady=6, relief="groove", bd=1)
+        mode_box.pack(fill=tk.X, pady=(2, 8))
+
+        tk.Label(
+            mode_box,
+            text="Pilih Mode Auto Skill:",
+            bg="#0d1117",
+            fg="#d29922",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Radiobutton(
+            mode_box,
+            text="🎯 Smart Combo (Visual Cooldown Deteksi & Rotasi)",
+            variable=self.var_skill_mode,
+            value="smart_combo",
+            command=self._on_skill_mode_changed,
+            bg="#0d1117",
+            fg="#58a6ff",
+            selectcolor="#161b22",
+            activebackground="#0d1117",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 14))
+
+        tk.Radiobutton(
+            mode_box,
+            text="⏱️ Timer Interval (Spam berkala sesuai detik)",
+            variable=self.var_skill_mode,
+            value="timer_interval",
+            command=self._on_skill_mode_changed,
+            bg="#0d1117",
+            fg="#c9d1d9",
+            selectcolor="#161b22",
+            activebackground="#0d1117",
+            activeforeground="#c9d1d9",
+            font=("Segoe UI", 9)
+        ).pack(side=tk.LEFT)
 
         btn_bar = tk.Frame(top_frame, bg="#161b22")
-        btn_bar.pack(fill=tk.X, pady=(8, 0))
+        btn_bar.pack(fill=tk.X)
 
         tk.Button(
             btn_bar,
@@ -1952,7 +1995,7 @@ class FarmerGUI(tk.Tk):
 
         tk.Button(
             btn_bar,
-            text="🔄 Reset Countdown (Trigger Ulang)",
+            text="🔄 Reset Status / Rotasi",
             font=("Segoe UI", 8),
             bg="#30363d",
             fg="#c9d1d9",
@@ -1960,25 +2003,133 @@ class FarmerGUI(tk.Tk):
             padx=10,
             pady=4,
             command=self._reset_skill_timers
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="🔍 Test Cek Cooldown Sekarang",
+            font=("Segoe UI", 8, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self._test_detect_combo_skills
         ).pack(side=tk.LEFT)
 
-        # Scrollable container for keys
-        canvas = tk.Canvas(container, bg="#222428", highlightthickness=0)
-        scroll = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg="#222428")
+        # Body container
+        self.skill_body_container = tk.Frame(container, bg="#222428")
+        self.skill_body_container.pack(fill=tk.BOTH, expand=True)
 
-        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scroll.set)
+        # -------------------------------------------------------------
+        # 1. SMART COMBO MODE VIEW
+        # -------------------------------------------------------------
+        self.frame_combo_mode = tk.Frame(self.skill_body_container, bg="#222428")
 
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        # Bar Calibration & Action Frame
+        combo_bar_ctrl = tk.Frame(self.frame_combo_mode, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
+        combo_bar_ctrl.pack(fill=tk.X, pady=(0, 8))
+
+        bar_btn = tk.Button(
+            combo_bar_ctrl,
+            text="🎯 Kalibrasi Bar Skill (10 Slot)",
+            font=("Segoe UI", 8, "bold"),
+            bg="#8957e5",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.calibrate_quickslot_bar
+        )
+        bar_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.lbl_quickslot_bar_info = tk.Label(
+            combo_bar_ctrl,
+            text="Bar: -",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Consolas", 8)
+        )
+        self.lbl_quickslot_bar_info.pack(side=tk.LEFT, padx=(0, 15))
+        self._update_quickslot_bar_label()
+
+        tk.Button(
+            combo_bar_ctrl,
+            text="➕ Tambah Skill ke Combo",
+            font=("Segoe UI", 8, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self._add_combo_skill
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Label(
+            combo_bar_ctrl,
+            text="Interval Cek (detik):",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Segoe UI", 8)
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
+        tk.Entry(
+            combo_bar_ctrl,
+            textvariable=self.var_skill_combo_interval,
+            width=5,
+            bg="#0d1117",
+            fg="#e1e2e6",
+            insertbackground="#ffffff",
+            font=("Consolas", 8)
+        ).pack(side=tk.LEFT)
+
+        # Info Guide banner
+        guide_lbl = tk.Label(
+            self.frame_combo_mode,
+            text="💡 Rotasi combo dicek berurutan (1 ➔ 2 ➔ 3...). Jika skill Cooldown (gelap), otomatis dilewati ke skill berikutnya.",
+            bg="#222428",
+            fg="#7ee787",
+            font=("Segoe UI", 8, "italic")
+        )
+        guide_lbl.pack(anchor=tk.W, pady=(0, 6))
+
+        # Scrollable container for combo skill items
+        canvas_combo = tk.Canvas(self.frame_combo_mode, bg="#222428", highlightthickness=0)
+        scroll_combo = tk.Scrollbar(self.frame_combo_mode, orient="vertical", command=canvas_combo.yview)
+        self.frame_combo_list = tk.Frame(canvas_combo, bg="#222428")
+
+        self.frame_combo_list.bind("<Configure>", lambda e: canvas_combo.configure(scrollregion=canvas_combo.bbox("all")))
+        canvas_combo.create_window((0, 0), window=self.frame_combo_list, anchor="nw")
+        canvas_combo.configure(yscrollcommand=scroll_combo.set)
+
+        canvas_combo.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_combo.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._combo_thumbnails = []
+        self._combo_row_vars = []
+        self._combo_status_labels = []
+
+        # -------------------------------------------------------------
+        # 2. TIMER INTERVAL MODE VIEW
+        # -------------------------------------------------------------
+        self.frame_timer_mode = tk.Frame(self.skill_body_container, bg="#222428")
+
+        canvas_timer = tk.Canvas(self.frame_timer_mode, bg="#222428", highlightthickness=0)
+        scroll_timer = tk.Scrollbar(self.frame_timer_mode, orient="vertical", command=canvas_timer.yview)
+        scrollable_timer_frame = tk.Frame(canvas_timer, bg="#222428")
+
+        scrollable_timer_frame.bind("<Configure>", lambda e: canvas_timer.configure(scrollregion=canvas_timer.bbox("all")))
+        canvas_timer.create_window((0, 0), window=scrollable_timer_frame, anchor="nw")
+        canvas_timer.configure(yscrollcommand=scroll_timer.set)
+
+        canvas_timer.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_timer.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.skill_vars = {}
         keys_cfg = skill_cfg.get("keys", {})
 
         def make_section(title, pairs):
-            sec_frame = tk.LabelFrame(scrollable_frame, text=f" {title} ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+            sec_frame = tk.LabelFrame(scrollable_timer_frame, text=f" {title} ", bg="#222428", fg="#d29922", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
             sec_frame.pack(fill=tk.X, pady=(0, 8))
 
             col_left = tk.Frame(sec_frame, bg="#222428")
@@ -2056,31 +2207,473 @@ class FarmerGUI(tk.Tk):
             [("f1", "f6"), ("f2", "f7"), ("f3", "f8"), ("f4", "f9"), ("f5", "f10")]
         )
 
-        # Start countdown updater (100ms interval for smooth live countdown)
+        # Render combo items initially
+        self._render_combo_items()
+
+        # Show appropriate view based on initial mode
+        self._on_skill_mode_changed()
+
+        # Start countdown / status updater
         self.after(100, self._update_skill_countdowns)
 
-    def _apply_skill_gui_to_config(self, save_to_disk=False):
-        if not hasattr(self, "skill_vars") or not self.skill_vars:
+    def _on_skill_mode_changed(self):
+        mode = self.var_skill_mode.get()
+        if mode == "smart_combo":
+            self.frame_timer_mode.pack_forget()
+            self.frame_combo_mode.pack(fill=tk.BOTH, expand=True)
+        else:
+            self.frame_combo_mode.pack_forget()
+            self.frame_timer_mode.pack(fill=tk.BOTH, expand=True)
+
+    def _update_quickslot_bar_label(self):
+        bar = self.config.get("auto_skill", {}).get("quickslot_bar", {})
+        if bar and "x" in bar:
+            self.lbl_quickslot_bar_info.config(
+                text=f"Bar 10 Slot: X={bar.get('x')} Y={bar.get('y')} W={bar.get('w')} H={bar.get('h')}",
+                fg="#3fb950"
+            )
+        else:
+            self.lbl_quickslot_bar_info.config(
+                text="Bar 10 Slot: Belum Dikalibrasi",
+                fg="#f85149"
+            )
+
+    def _add_combo_skill(self):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.setdefault("auto_skill", {}).setdefault("combo_list", [])
+        new_idx = len(combo_list) + 1
+        default_slot = min(10, new_idx)
+        combo_list.append({
+            "id": f"skill_{int(time.time() * 1000)}",
+            "name": f"Skill {new_idx}",
+            "hotkey": str(default_slot if default_slot < 10 else 0),
+            "slot_index": default_slot,
+            "slot_box": None,
+            "template_path": "",
+            "similarity_threshold": 0.75,
+            "brightness_ratio_threshold": 0.70,
+            "cast_delay_sec": 0.30,
+            "enabled": True
+        })
+        self._render_combo_items()
+
+    def _delete_combo_item(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+        if 0 <= idx < len(combo_list):
+            del combo_list[idx]
+            self._render_combo_items()
+
+    def _move_combo_item(self, idx: int, direction: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+        target_idx = idx + direction
+        if 0 <= idx < len(combo_list) and 0 <= target_idx < len(combo_list):
+            combo_list[idx], combo_list[target_idx] = combo_list[target_idx], combo_list[idx]
+            self._render_combo_items()
+
+    def _render_combo_items(self):
+        for widget in self.frame_combo_list.winfo_children():
+            widget.destroy()
+
+        self._combo_thumbnails = []
+        self._combo_row_vars = []
+        self._combo_status_labels = []
+
+        combo_list = self.config.get("auto_skill", {}).get("combo_list", [])
+        if not combo_list:
+            empty_lbl = tk.Label(
+                self.frame_combo_list,
+                text="Belum ada skill dalam combo list.\nKlik tombol '➕ Tambah Skill ke Combo' di atas untuk memulai.",
+                bg="#222428",
+                fg="#8b949e",
+                font=("Segoe UI", 10),
+                pady=20
+            )
+            empty_lbl.pack()
             return
+
+        hotkey_options = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "e", "r", "f",
+                          "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"]
+        slot_options = [f"Slot {i}" for i in range(1, 11)] + ["Custom Area"]
+
+        for idx, item in enumerate(combo_list):
+            card = tk.LabelFrame(
+                self.frame_combo_list,
+                text=f" #{idx + 1} - {item.get('name', f'Skill {idx+1}')} ",
+                bg="#161b22",
+                fg="#58a6ff",
+                font=("Segoe UI", 9, "bold"),
+                padx=8,
+                pady=6,
+                relief="ridge",
+                bd=1
+            )
+            card.pack(fill=tk.X, pady=(0, 6))
+
+            # Row 1: Controls
+            r1 = tk.Frame(card, bg="#161b22")
+            r1.pack(fill=tk.X, pady=(0, 4))
+
+            var_en = tk.BooleanVar(value=item.get("enabled", True))
+            tk.Checkbutton(
+                r1,
+                text="Aktif",
+                variable=var_en,
+                bg="#161b22",
+                fg="#7ee787",
+                selectcolor="#0d1117",
+                activebackground="#161b22",
+                activeforeground="#7ee787",
+                font=("Segoe UI", 8, "bold")
+            ).pack(side=tk.LEFT, padx=(0, 6))
+
+            tk.Label(r1, text="Nama:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_name = tk.StringVar(value=item.get("name", f"Skill {idx+1}"))
+            tk.Entry(r1, textvariable=var_name, width=10, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Slot:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            cur_slot = item.get("slot_index", 1)
+            init_slot_str = f"Slot {cur_slot}" if (1 <= cur_slot <= 10) else "Custom Area"
+            var_slot = tk.StringVar(value=init_slot_str)
+            cb_slot = ttk.Combobox(r1, textvariable=var_slot, values=slot_options, width=11, state="readonly", font=("Segoe UI", 8))
+            cb_slot.pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Hotkey:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_hotkey = tk.StringVar(value=str(item.get("hotkey", "1")).lower())
+            cb_hotkey = ttk.Combobox(r1, textvariable=var_hotkey, values=hotkey_options, width=5, state="readonly", font=("Segoe UI", 8))
+            cb_hotkey.pack(side=tk.LEFT, padx=(2, 8))
+
+            tk.Label(r1, text="Cast Delay (s):", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+            var_delay = tk.StringVar(value=str(item.get("cast_delay_sec", 0.30)))
+            tk.Entry(r1, textvariable=var_delay, width=5, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8)).pack(side=tk.LEFT, padx=(2, 8))
+
+            # Move & Delete buttons
+            btn_up = tk.Button(r1, text="⬆️", font=("Segoe UI", 7), bg="#30363d", fg="#c9d1d9", relief="flat", padx=4, command=lambda i=idx: self._move_combo_item(i, -1))
+            btn_up.pack(side=tk.RIGHT, padx=2)
+            btn_down = tk.Button(r1, text="⬇️", font=("Segoe UI", 7), bg="#30363d", fg="#c9d1d9", relief="flat", padx=4, command=lambda i=idx: self._move_combo_item(i, 1))
+            btn_down.pack(side=tk.RIGHT, padx=2)
+            btn_del = tk.Button(r1, text="🗑️", font=("Segoe UI", 7), bg="#da3633", fg="#ffffff", relief="flat", padx=4, command=lambda i=idx: self._delete_combo_item(i))
+            btn_del.pack(side=tk.RIGHT, padx=4)
+
+            # Row 2: Template icon, capture actions, and live status
+            r2 = tk.Frame(card, bg="#161b22")
+            r2.pack(fill=tk.X, pady=(2, 0))
+
+            # Thumbnail preview
+            tpl_path = item.get("template_path", "")
+            img_displayed = False
+            if tpl_path:
+                full_tpl_path = Path(tpl_path) if Path(tpl_path).is_absolute() else Path(self.config.base_dir) / tpl_path
+                if full_tpl_path.exists():
+                    try:
+                        pil_img = Image.open(full_tpl_path).convert("RGB")
+                        pil_img.thumbnail((32, 32))
+                        tk_thumb = ImageTk.PhotoImage(pil_img)
+                        self._combo_thumbnails.append(tk_thumb)
+                        lbl_icon = tk.Label(r2, image=tk_thumb, bg="#0d1117", bd=1, relief="solid")
+                        lbl_icon.pack(side=tk.LEFT, padx=(0, 6))
+                        img_displayed = True
+                    except Exception:
+                        pass
+
+            if not img_displayed:
+                lbl_no_icon = tk.Label(r2, text="[No Icon]", bg="#0d1117", fg="#8b949e", font=("Consolas", 7), width=8, height=2, bd=1, relief="solid")
+                lbl_no_icon.pack(side=tk.LEFT, padx=(0, 6))
+
+            tk.Button(
+                r2,
+                text="📸 Ambil Icon dari Slot",
+                font=("Segoe UI", 7, "bold"),
+                bg="#238636",
+                fg="#ffffff",
+                relief="flat",
+                padx=6,
+                pady=2,
+                command=lambda i=idx: self.capture_skill_icon_from_slot(i)
+            ).pack(side=tk.LEFT, padx=(0, 4))
+
+            tk.Button(
+                r2,
+                text="✂️ Crop Manual",
+                font=("Segoe UI", 7),
+                bg="#30363d",
+                fg="#c9d1d9",
+                relief="flat",
+                padx=6,
+                pady=2,
+                command=lambda i=idx: self.capture_skill_icon_manual(i)
+            ).pack(side=tk.LEFT, padx=(0, 4))
+
+            tk.Button(
+                r2,
+                text="📍 Kalibrasi Slot Ini",
+                font=("Segoe UI", 7),
+                bg="#30363d",
+                fg="#c9d1d9",
+                relief="flat",
+                padx=6,
+                pady=2,
+                command=lambda i=idx: self.calibrate_single_skill_slot(i)
+            ).pack(side=tk.LEFT, padx=(0, 10))
+
+            # Slot box / position info
+            slot_box = item.get("slot_box")
+            if slot_box:
+                box_str = f"Box: X={slot_box.get('x')} Y={slot_box.get('y')} W={slot_box.get('w')} H={slot_box.get('h')}"
+            else:
+                box_str = f"Auto: {init_slot_str}"
+            tk.Label(r2, text=box_str, bg="#161b22", fg="#8b949e", font=("Consolas", 7)).pack(side=tk.LEFT, padx=(0, 10))
+
+            # Live status badge
+            lbl_status = tk.Label(
+                r2,
+                text="[READY]" if tpl_path else "[BELUM DI-CAPTURE]",
+                bg="#161b22",
+                fg="#3fb950" if tpl_path else "#8b949e",
+                font=("Segoe UI", 8, "bold")
+            )
+            lbl_status.pack(side=tk.RIGHT, padx=4)
+            self._combo_status_labels.append(lbl_status)
+
+            self._combo_row_vars.append({
+                "id": item.get("id", f"skill_{idx+1}"),
+                "enabled": var_en,
+                "name": var_name,
+                "slot_str": var_slot,
+                "hotkey": var_hotkey,
+                "delay": var_delay,
+                "slot_box": slot_box,
+                "template_path": tpl_path,
+                "similarity_threshold": item.get("similarity_threshold", 0.75),
+                "brightness_ratio_threshold": item.get("brightness_ratio_threshold", 0.70)
+            })
+
+    def calibrate_quickslot_bar(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(10, x2 - x1)
+            h = max(10, y2 - y1)
+            if "auto_skill" not in self.config.data:
+                self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
+            self.config.data["auto_skill"]["quickslot_bar"] = {
+                "x": x1, "y": y1, "w": w, "h": h, "cols": 10, "rows": 1
+            }
+            self.config.save()
+            self._update_quickslot_bar_label()
+            self.append_log(f"⚡ [Auto Skill] Bar Quickslot (10 Slot) dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            messagebox.showinfo(
+                "Kalibrasi Berhasil",
+                f"Bar Quickslot 10 Slot berhasil disimpan!\nKoordinat: X={x1}, Y={y1}, W={w}, H={h}\n\n"
+                f"Setiap slot 1..10 sekarang otomatis terpetakan merata."
+            )
+
+        AreaSelectorWindow(self, "Pilih Bar Quickslot (10 Slot dari Slot 1 s/d Slot 10)", 10, 1, client_img, on_saved)
+
+    def calibrate_single_skill_slot(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(5, x2 - x1)
+            h = max(5, y2 - y1)
+            combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+            if 0 <= idx < len(combo_list):
+                combo_list[idx]["slot_box"] = {"x": x1, "y": y1, "w": w, "h": h}
+                self.config.save()
+                self._render_combo_items()
+                self.append_log(f"⚡ [Auto Skill] Slot #{idx+1} box dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}")
+                messagebox.showinfo("Sukses", f"Area Slot #{idx+1} berhasil disimpan:\nX={x1}, Y={y1}, W={w}, H={h}")
+
+        AreaSelectorWindow(self, f"Pilih Kotak Slot untuk Combo #{idx+1}", 1, 1, client_img, on_saved)
+
+    def capture_skill_icon_from_slot(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+        if not (0 <= idx < len(combo_list)):
+            return
+        item = combo_list[idx]
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        crop_img = self.bot.skills.get_skill_slot_crop(client_img, item)
+        if not crop_img:
+            messagebox.showwarning(
+                "Slot Belum Dikalibrasi",
+                f"Kotak slot untuk #{idx+1} belum diketahui.\n"
+                f"Silakan Kalibrasi Bar Skill (10 Slot) terlebih dahulu, atau gunakan tombol '✂️ Crop Manual'."
+            )
+            return
+
+        skills_dir = self.config.skills_dir
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"skill_{item.get('id', f'idx_{idx}')}_{int(time.time())}.png"
+        save_path = skills_dir / filename
+        crop_img.save(save_path)
+
+        rel_path = f"assets/skills/{filename}"
+        item["template_path"] = rel_path
+        self.config.save()
+        self._render_combo_items()
+        self.append_log(f"⚡ [Auto Skill] Icon aktif #{idx+1} berhasil dicapture dari slot ke {rel_path}.")
+        messagebox.showinfo("Capture Berhasil", f"Icon aktif #{idx+1} berhasil dicapture!\nTersimpan di: {rel_path}")
+
+    def capture_skill_icon_manual(self, idx: int):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+        if not (0 <= idx < len(combo_list)):
+            return
+        item = combo_list[idx]
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(5, x2 - x1)
+            h = max(5, y2 - y1)
+            crop_img = client_img.crop(rect)
+            skills_dir = self.config.skills_dir
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"skill_{item.get('id', f'idx_{idx}')}_{int(time.time())}.png"
+            save_path = skills_dir / filename
+            crop_img.save(save_path)
+
+            rel_path = f"assets/skills/{filename}"
+            item["template_path"] = rel_path
+            item["slot_box"] = {"x": x1, "y": y1, "w": w, "h": h}
+            self.config.save()
+            self._render_combo_items()
+            self.append_log(f"⚡ [Auto Skill] Icon aktif #{idx+1} manual crop berhasil ke {rel_path}.")
+            messagebox.showinfo("Capture Berhasil", f"Icon aktif #{idx+1} berhasil disimpan!\nArea Slot: X={x1}, Y={y1}, W={w}, H={h}\nFile: {rel_path}")
+
+        AreaSelectorWindow(self, f"Crop Icon Skill Aktif #{idx+1} (Drag Kotak Icon)", 1, 1, client_img, on_saved)
+
+    def _test_detect_combo_skills(self):
+        self._apply_skill_gui_to_config(save_to_disk=False)
+        combo_list = self.config.data.get("auto_skill", {}).get("combo_list", [])
+        if not combo_list:
+            messagebox.showinfo("Info", "Belum ada skill dalam combo list.")
+            return
+
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        summary_lines = []
+        for idx, item in enumerate(combo_list):
+            name = item.get("name", f"Skill {idx+1}")
+            hotkey = item.get("hotkey", "?")
+            tpl_path = item.get("template_path", "")
+
+            if not tpl_path:
+                status_str = "BELUM CAPTURE ICON"
+                summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+                if idx < len(self._combo_status_labels):
+                    self._combo_status_labels[idx].config(text=f"[{status_str}]", fg="#8b949e")
+                continue
+
+            crop = self.bot.skills.get_skill_slot_crop(client_img, item)
+            if not crop:
+                status_str = "SLOT TIDAK DITEMUKAN"
+                summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+                if idx < len(self._combo_status_labels):
+                    self._combo_status_labels[idx].config(text=f"[{status_str}]", fg="#f85149")
+                continue
+
+            tpl_img = self.bot.skills.load_skill_template(tpl_path)
+            if not tpl_img:
+                status_str = "FILE TEMPLATE HILANG"
+                summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+                if idx < len(self._combo_status_labels):
+                    self._combo_status_labels[idx].config(text=f"[{status_str}]", fg="#f85149")
+                continue
+
+            is_active = self.bot.skills.is_skill_active(client_img, item, tpl_img)
+            if is_active:
+                status_str = "READY / AKTIF"
+                color = "#3fb950"
+            else:
+                status_str = "COOLDOWN (GELAP)"
+                color = "#f85149"
+
+            summary_lines.append(f"• #{idx+1} ({name}, Key {hotkey.upper()}): {status_str}")
+            if idx < len(self._combo_status_labels):
+                self._combo_status_labels[idx].config(text=f"[{status_str}]", fg=color)
+
+        res_text = "\n".join(summary_lines)
+        self.append_log(f"⚡ [Auto Skill Test Cooldown]:\n{res_text}")
+        messagebox.showinfo("Hasil Cek Cooldown Real-time", f"Hasil deteksi saat ini:\n\n{res_text}")
+
+    def _apply_skill_gui_to_config(self, save_to_disk=False):
         if "auto_skill" not in self.config.data:
-            self.config.data["auto_skill"] = {}
+            self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
+
         if hasattr(self, "var_skill_enabled"):
             self.config.data["auto_skill"]["enabled"] = self.var_skill_enabled.get()
         if hasattr(self, "var_skill_sync_hunt"):
             self.config.data["auto_skill"]["sync_with_auto_hunt"] = self.var_skill_sync_hunt.get()
-
-        if "keys" not in self.config.data["auto_skill"]:
-            self.config.data["auto_skill"]["keys"] = {}
-
-        for k, widgets in self.skill_vars.items():
+        if hasattr(self, "var_skill_mode"):
+            self.config.data["auto_skill"]["mode"] = self.var_skill_mode.get()
+        if hasattr(self, "var_skill_combo_interval"):
             try:
-                sec_val = float(widgets["interval"].get().strip())
+                self.config.data["auto_skill"]["combo_check_interval_sec"] = max(0.01, float(self.var_skill_combo_interval.get().strip()))
             except ValueError:
-                sec_val = 10.0
-            self.config.data["auto_skill"]["keys"][k] = {
-                "enabled": widgets["enabled"].get(),
-                "interval": max(0.1, sec_val)
-            }
+                self.config.data["auto_skill"]["combo_check_interval_sec"] = 0.05
+
+        # Save combo items from UI
+        if hasattr(self, "_combo_row_vars") and self._combo_row_vars:
+            combo_list = []
+            for item_vars in self._combo_row_vars:
+                slot_str = item_vars["slot_str"].get()
+                if slot_str.startswith("Slot "):
+                    try:
+                        slot_idx = int(slot_str.replace("Slot ", "").strip())
+                    except ValueError:
+                        slot_idx = 1
+                else:
+                    slot_idx = 0
+
+                try:
+                    delay_val = max(0.05, float(item_vars["delay"].get().strip()))
+                except ValueError:
+                    delay_val = 0.30
+
+                combo_list.append({
+                    "id": item_vars["id"],
+                    "enabled": item_vars["enabled"].get(),
+                    "name": item_vars["name"].get().strip(),
+                    "slot_index": slot_idx,
+                    "hotkey": item_vars["hotkey"].get().strip().lower(),
+                    "cast_delay_sec": delay_val,
+                    "slot_box": item_vars["slot_box"],
+                    "template_path": item_vars["template_path"],
+                    "similarity_threshold": item_vars["similarity_threshold"],
+                    "brightness_ratio_threshold": item_vars["brightness_ratio_threshold"]
+                })
+            self.config.data["auto_skill"]["combo_list"] = combo_list
+
+        # Save timer interval keys from UI
+        if hasattr(self, "skill_vars") and self.skill_vars:
+            if "keys" not in self.config.data["auto_skill"]:
+                self.config.data["auto_skill"]["keys"] = {}
+            for k, widgets in self.skill_vars.items():
+                try:
+                    sec_val = float(widgets["interval"].get().strip())
+                except ValueError:
+                    sec_val = 10.0
+                self.config.data["auto_skill"]["keys"][k] = {
+                    "enabled": widgets["enabled"].get(),
+                    "interval": max(0.1, sec_val)
+                }
 
         if save_to_disk:
             self.config.save()
@@ -2094,42 +2687,57 @@ class FarmerGUI(tk.Tk):
 
     def _reset_skill_timers(self):
         self.bot.skills.reset_timers()
-        for k, widgets in self.skill_vars.items():
-            widgets["lbl_countdown"].config(text="-", fg="#8b949e")
+        if hasattr(self, "skill_vars") and self.skill_vars:
+            for k, widgets in self.skill_vars.items():
+                widgets["lbl_countdown"].config(text="-", fg="#8b949e")
+        if hasattr(self, "_combo_status_labels"):
+            for lbl in self._combo_status_labels:
+                lbl.config(text="[RESET]", fg="#8b949e")
 
     def _update_skill_countdowns(self):
         try:
             is_running = self.bot.skills.is_running
             now = time.time()
-            for k, widgets in self.skill_vars.items():
-                is_enabled = widgets["enabled"].get()
-                lbl = widgets["lbl_countdown"]
 
-                if not is_running or not is_enabled:
-                    lbl.config(text="-", fg="#8b949e")
-                    continue
+            # Timer mode countdown updates
+            if hasattr(self, "skill_vars") and self.skill_vars:
+                for k, widgets in self.skill_vars.items():
+                    is_enabled = widgets["enabled"].get()
+                    lbl = widgets["lbl_countdown"]
 
-                try:
-                    interval = float(widgets["interval"].get().strip())
-                except ValueError:
-                    interval = 10.0
+                    if not is_running or not is_enabled:
+                        lbl.config(text="-", fg="#8b949e")
+                        continue
 
-                last_t = self.bot.skills.last_press_times.get(k, 0.0)
-                if last_t <= 0.0:
-                    disp = "0.0s"
-                    fg_color = "#e3b341"
-                else:
-                    elapsed = now - last_t
-                    remaining = max(0.0, interval - elapsed)
-                    if remaining >= 10.0:
-                        disp = f"{int(math.ceil(remaining))}s"
-                    elif remaining > 0.0:
-                        disp = f"{remaining:.1f}s"
-                    else:
+                    try:
+                        interval = float(widgets["interval"].get().strip())
+                    except ValueError:
+                        interval = 10.0
+
+                    last_t = self.bot.skills.last_press_times.get(k, 0.0)
+                    if last_t <= 0.0:
                         disp = "0.0s"
-                    fg_color = "#e3b341" if remaining <= 1.0 else "#7ee787"
+                        fg_color = "#e3b341"
+                    else:
+                        elapsed = now - last_t
+                        remaining = max(0.0, interval - elapsed)
+                        if remaining >= 10.0:
+                            disp = f"{int(math.ceil(remaining))}s"
+                        elif remaining > 0.0:
+                            disp = f"{remaining:.1f}s"
+                        else:
+                            disp = "0.0s"
+                        fg_color = "#e3b341" if remaining <= 1.0 else "#7ee787"
 
-                lbl.config(text=disp, fg=fg_color)
+                    lbl.config(text=disp, fg=fg_color)
+
+            # Smart combo mode live status indicator
+            if is_running and hasattr(self, "var_skill_mode") and self.var_skill_mode.get() == "smart_combo":
+                active_combo_idx = self.bot.skills.current_combo_index
+                if hasattr(self, "_combo_status_labels"):
+                    for idx, lbl in enumerate(self._combo_status_labels):
+                        if idx == active_combo_idx:
+                            lbl.config(text="▶ [RUNNING]", fg="#58a6ff")
         except Exception:
             pass
         self.after(100, self._update_skill_countdowns)

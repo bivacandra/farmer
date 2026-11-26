@@ -111,6 +111,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "auto_skill": {
         "enabled": False,
         "sync_with_auto_hunt": True,
+        "mode": "smart_combo",
+        "combo_check_interval_sec": 0.05,
+        "combo_list": [],
         "keys": {
             "1": {"enabled": False, "interval": 10.0},
             "2": {"enabled": False, "interval": 10.0},
@@ -247,6 +250,12 @@ class Config:
     @property
     def storage_qty100_dir(self) -> Path:
         p = self.assets_dir / "storage_qty100"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def skills_dir(self) -> Path:
+        p = self.assets_dir / "skills"
         p.mkdir(parents=True, exist_ok=True)
         return p
 
