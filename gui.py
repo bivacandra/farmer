@@ -3607,8 +3607,7 @@ class FarmerGUI(tk.Tk):
 
             # Auto Buff live status badges
             if hasattr(self, "_buff_status_labels") and self._buff_status_labels:
-                with self.bot.skills._lock:
-                    buff_statuses = dict(self.bot.skills.buff_status)
+                buff_statuses = dict(getattr(self.bot.skills, "buff_status", {}))
                 for idx, lbl in enumerate(self._buff_status_labels):
                     if idx < len(self._buff_row_vars):
                         b_id = self._buff_row_vars[idx]["id"]

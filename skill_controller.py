@@ -432,14 +432,15 @@ class SkillController:
             self.last_cast_times.clear()
             self.last_buff_cast_times.clear()
             self.last_hunt_press_times.clear()
-            self._thread = threading.Thread(target=self._loop, daemon=True)
-            self._thread.start()
             cfg = self.get_skill_cfg()
             mode = cfg.get("mode", "smart_combo")
-            if mode == "smart_combo":
-                self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Rotasi Sekuensial, Buff & Hunting)...")
-            else:
-                self.log("⚡ [Auto Skill] Berjalan dalam Mode TIMER INTERVAL (Detik)...")
+
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+        if mode == "smart_combo":
+            self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Rotasi Sekuensial, Buff & Hunting)...")
+        else:
+            self.log("⚡ [Auto Skill] Berjalan dalam Mode TIMER INTERVAL (Detik)...")
 
     def stop(self):
         with self._lock:
@@ -544,6 +545,10 @@ class SkillController:
                 elif r > 110 and g > 90 and b < 100 and (r - b > 35) and abs(r - g) < 55:
                     gold_border_count += 1
 
+                # Early exit optimization: if we have already found enough red pixels, monster is targeted
+                if (red_count + dark_red_count) >= 40:
+                    return True
+
         total_red = red_count + dark_red_count
         is_targeted = (total_red >= min_red) or (red_count >= 15 and gold_border_count >= 10)
         return is_targeted
@@ -641,6 +646,9 @@ class SkillController:
     def _loop(self):
         last_hunt_tick = 0.0
         last_buff_tick = 0.0
+        last_target_check = 0.0
+        has_target_cached = True
+
         while self.is_running:
             try:
                 cfg = self.get_skill_cfg()
@@ -649,27 +657,28 @@ class SkillController:
                     continue
 
                 now = time.time()
-                client_img = None
-                if self.screen:
-                    client_img = self.screen.capture_client()
 
-                # 1. Target Monster Check
+                # 1. Target Monster Check (throttled to every 0.15s to keep CPU low and avoid GDI contention)
                 target_cfg = cfg.get("target_monster", DEFAULT_SKILL_CONFIG.get("target_monster", {}))
                 require_target = target_cfg.get("enabled", True)
                 area = target_cfg.get("area")
 
-                has_target = True
-                if require_target and area and "x" in area:
-                    has_target = self.has_target_monster(client_img, target_cfg)
-                    with self._lock:
-                        self.has_target = has_target
+                client_img = None
+                if require_target and area and "x" in area and self.screen:
+                    if now - last_target_check >= 0.15:
+                        client_img = self.screen.capture_client()
+                        has_target_cached = self.has_target_monster(client_img, target_cfg)
+                        last_target_check = now
+                        with self._lock:
+                            self.has_target = has_target_cached
                 else:
+                    has_target_cached = True
                     with self._lock:
                         self.has_target = True
 
                 # 2. Basic Hunt Keys (E: Target, R: Attack, F: Loot)
                 if now - last_hunt_tick >= 0.05:
-                    self._run_hunt_keys_tick(cfg, has_target=has_target)
+                    self._run_hunt_keys_tick(cfg, has_target=has_target_cached)
                     last_hunt_tick = now
 
                 # 3. Auto Buff Check & Recast
@@ -680,11 +689,11 @@ class SkillController:
                     last_buff_tick = now
 
                 # 4. If Target Monster is required and NO TARGET is present -> HOLD SKILLS!
-                if require_target and area and "x" in area and not has_target:
-                    if now - self.last_target_log_time >= 4.0:
-                        self.log("⏸️ [Target Monster] Target monster kosong / hilang. Menahan skill sampai ada target baru...")
+                if require_target and area and "x" in area and not has_target_cached:
+                    if now - self.last_target_log_time >= 5.0:
+                        self.log("⏸️ [Target Monster] Target monster kosong / hilang. Menahan skill sampai target muncul...")
                         self.last_target_log_time = now
-                    time.sleep(0.08)
+                    time.sleep(0.12)
                     continue
 
                 # 5. Main Skill Execution (Smart Combo or Timer Interval)
@@ -694,6 +703,8 @@ class SkillController:
                     self._run_smart_combo_tick(cfg, client_img=client_img)
                 else:
                     self._run_timer_interval_tick()
+
+                time.sleep(0.04)
 
             except Exception as e:
                 time.sleep(0.1)

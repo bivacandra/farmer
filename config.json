@@ -139,6 +139,16 @@
         "brightness_ratio_threshold": 0.7
       }
     ],
+    "target_monster": {
+      "enabled": true,
+      "area": {
+        "x": 288,
+        "y": 0,
+        "w": 222,
+        "h": 43
+      },
+      "min_red_pixels": 25
+    },
     "hunt_keys": {
       "e": {
         "enabled": false,
@@ -272,16 +282,6 @@
         "enabled": false,
         "interval": 10.0
       }
-    },
-    "target_monster": {
-      "enabled": true,
-      "area": {
-        "x": 400,
-        "y": 20,
-        "w": 250,
-        "h": 50
-      },
-      "min_red_pixels": 25
     }
   },
   "auto_pot": {
