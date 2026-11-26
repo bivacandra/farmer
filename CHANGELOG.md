@@ -5,6 +5,15 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.2.2] - 2026-11-26
+
+### 🛠️ Fixed
+- **Perbaikan Error Pemanggilan OCR pada Blacklist Tarik Gudang**:
+  - Memperbaiki `AttributeError: 'OCREngine' object has no attribute 'get_item_name_from_tooltip'` saat memeriksa slot Storage ke Inventory.
+  - Penarikan dari gudang kini sepenuhnya menggunakan pencocokan visual template ikon (`match_item_in_whitelist`) yang cepat, presisi, dan konsisten dengan sistem Blacklist Simpan & Jual.
+
+---
+
 ## [v1.2.1] - 2026-11-26
 
 ### 🟢 Added & Improved

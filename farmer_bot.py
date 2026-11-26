@@ -380,23 +380,12 @@ class FarmerBot:
                         is_blacklisted, bl_name, score = self.matcher.match_item_in_whitelist(
                             slot_crop, whitelist_dir=self.config.storage_withdraw_blacklist_dir, threshold=th_withdraw
                         )
-                        if is_blacklisted:
-                            self.log(f"🛑 [Blacklist Tarik Gudang] Slot #{slot_idx} cocok '{bl_name}' ({score:.2f}) -> Ditinggalkan di gudang.")
-                            continue
+                        if round(score, 2) >= round(th_withdraw, 2) or score >= (th_withdraw - 1e-4):
+                            is_blacklisted = True
 
-                        # Fallback OCR jika diaktifkan
-                        if self.config.get("rules", "use_ocr_name_fallback", True):
-                            hover_cx, hover_cy = self.get_storage_slot_coords(c, r)
-                            self.input.move_to(hover_cx, hover_cy)
-                            time.sleep(0.08)
-                            item_name = self.ocr.get_item_name_from_tooltip(self.screen.capture_client(), hover_cx, hover_cy)
-                            for bl_p in bl_icons:
-                                if bl_p.stem.lower() in item_name.lower():
-                                    is_blacklisted = True
-                                    self.log(f"🛑 [Blacklist Tarik Gudang OCR] Slot #{slot_idx} '{item_name}' cocok '{bl_p.stem}' -> Ditinggalkan di gudang.")
-                                    break
-                            if is_blacklisted:
-                                continue
+                        if is_blacklisted:
+                            self.log(f"🛑 [Blacklist Tarik Gudang] Slot #{slot_idx} [B:{r+1}, K:{c+1}] cocok '{bl_name}' ({score:.2f}) -> Ditinggalkan di gudang.")
+                            continue
 
                     # Find a STRICTLY EMPTY slot in inventory
                     empty_inv = self.find_empty_inventory_slot(client_img)
