@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.2.0"
+APP_VERSION = "v1.2.1"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ui": {
@@ -67,6 +67,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "storage_deposit": {
         "blacklist_enabled": True
     },
+    "storage_withdraw": {
+        "blacklist_enabled": True
+    },
     "storage_popup": {
         "click_x": 85,
         "click_y": 55,
@@ -76,6 +79,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "empty_slot_threshold": 18.0,
         "sell_whitelist_match_threshold": 0.78,
         "storage_blacklist_match_threshold": 0.50,
+        "storage_withdraw_blacklist_match_threshold": 0.50,
         "auto_confirm_sell": True,
         "use_ocr_name_fallback": True
     },
@@ -95,9 +99,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "backward_key": "s",
         "npc_click_y_offset": 50,
         "auto_align_camera": True,
-        "max_align_retries": 15,
+        "max_align_retries": 18,
         "dialog_wait_sec": 1.2,
-        "post_walk_settle_sec": 0.5
+        "post_walk_settle_sec": 0.5,
+        "low_spec_mode": False,
+        "align_settle_delay": 0.20,
+        "post_zoom_settle_sec": 1.0,
+        "align_max_search_steps": 30,
+        "align_match_threshold": 0.40
     },
     "auto_skill": {
         "enabled": False,
@@ -207,6 +216,12 @@ class Config:
     @property
     def storage_blacklist_dir(self) -> Path:
         p = self.assets_dir / "storage_blacklist"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def storage_withdraw_blacklist_dir(self) -> Path:
+        p = self.assets_dir / "storage_withdraw_blacklist"
         p.mkdir(parents=True, exist_ok=True)
         return p
 

@@ -5,6 +5,25 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.2.1] - 2026-11-26
+
+### 🟢 Added & Improved
+- **Fitur Blacklist Penarikan Gudang (Storage $\to$ Inventory) (Resolve #15)**:
+  - Menambahkan tab antarmuka baru: **`🚫 Blacklist Tarik Gudang`** untuk mencegah item-item berharga atau cadangan di gudang (seperti Ore, Potion cadangan, Equip simpanan) ikut terambil ke tas dan tidak sengaja terjual.
+  - Mendukung pemotongan ikon langsung dari **Slot Gudang (Storage 120 slot)** maupun **Slot Tas (Inventory 24 slot)**, penambahan gambar file manual, serta fallback pencocokan nama via OCR tooltip.
+  - Pengaturan threshold match tersendiri di tab Pengaturan (`storage_withdraw_blacklist_match_threshold`).
+
+### 🛠️ Fixed
+- **Optimasi Stabilitas Auto Loop Kamera di PC Low-Spec / Mini-PC (Resolve #14)**:
+  - Menghadirkan opsi **Mode PC Low-Spec** (dioptimasi khusus untuk Core i3 / RAM 4GB seperti Mini-PC Wearnes MP-8101).
+  - Mengatasi masalah kamera berputar-putar tanpa henti dengan:
+    1. Memperpanjang jeda pasca *zoom-out* agar animasi kamera mundur terproses penuh sebelum pencarian NPC dimulai.
+    2. Memberikan jeda stabilisasi rotasi (*settle delay*) setelah tombol putar dilepas agar GPU terintegrasi sempat merender frame yang tajam tanpa efek kabur (*motion blur / frame drop*).
+    3. Impuls putaran lebih halus (durasi tekan tombol lebih pendek) untuk mencegah sudut NPC Ashuri terlewati.
+    4. Menambahkan *Recovery Sweep Pass* otomatis jika pada putaran pertama NPC belum terdeteksi.
+
+---
+
 ## [v1.2.0] - 2026-11-25
 
 ### 🟢 Added & Improved

@@ -351,6 +351,13 @@ class FarmerBot:
         cols = store.get("cols", 10)
         rows = store.get("rows", 12)
 
+        withdraw_cfg = self.config.get("storage_withdraw", {})
+        blacklist_enabled = withdraw_cfg.get("blacklist_enabled", True)
+        bl_icons = list(self.config.storage_withdraw_blacklist_dir.glob("*.png")) + list(self.config.storage_withdraw_blacklist_dir.glob("*.jpg"))
+        th_withdraw = float(self.config.get("rules", "storage_withdraw_blacklist_match_threshold", 0.50))
+        if blacklist_enabled and bl_icons:
+            self.log(f"[Blacklist Tarik Gudang] Memuat {len(bl_icons)} item blacklist: {[p.stem for p in bl_icons]} (Threshold: {th_withdraw})")
+
         withdrawn_count = 0
 
         try:
@@ -367,6 +374,29 @@ class FarmerBot:
                     # If storage slot is empty, continue
                     if self.matcher.is_slot_empty(slot_crop):
                         continue
+
+                    # Cek BLACKLIST TARIK GUDANG (Item yang TIDAK ditarik dari storage ke tas)
+                    if blacklist_enabled and bl_icons:
+                        is_blacklisted, bl_name, score = self.matcher.match_item_in_whitelist(
+                            slot_crop, whitelist_dir=self.config.storage_withdraw_blacklist_dir, threshold=th_withdraw
+                        )
+                        if is_blacklisted:
+                            self.log(f"🛑 [Blacklist Tarik Gudang] Slot #{slot_idx} cocok '{bl_name}' ({score:.2f}) -> Ditinggalkan di gudang.")
+                            continue
+
+                        # Fallback OCR jika diaktifkan
+                        if self.config.get("rules", "use_ocr_name_fallback", True):
+                            hover_cx, hover_cy = self.get_storage_slot_coords(c, r)
+                            self.input.move_to(hover_cx, hover_cy)
+                            time.sleep(0.08)
+                            item_name = self.ocr.get_item_name_from_tooltip(self.screen.capture_client(), hover_cx, hover_cy)
+                            for bl_p in bl_icons:
+                                if bl_p.stem.lower() in item_name.lower():
+                                    is_blacklisted = True
+                                    self.log(f"🛑 [Blacklist Tarik Gudang OCR] Slot #{slot_idx} '{item_name}' cocok '{bl_p.stem}' -> Ditinggalkan di gudang.")
+                                    break
+                            if is_blacklisted:
+                                continue
 
                     # Find a STRICTLY EMPTY slot in inventory
                     empty_inv = self.find_empty_inventory_slot(client_img)
@@ -669,40 +699,78 @@ class FarmerBot:
         """
         Secara otomatis melakukan Zoom Out maksimal dan meluruskan sudut kamera
         antara Tradesman Abahan dan Jeweler Ashuri berbasis visual feedback.
+        Mendukung Low-Spec Mode untuk device spesifikasi rendah (Core i3, RAM 4GB)
+        agar terhindar dari frame-drop / motion-blur saat berputar.
         """
         self.log("🔭 [Auto Camera] Memulai auto-alignment kamera lurus...")
         self.wm.activate_window()
         time.sleep(0.2)
 
-        # 1. Zoom out kamera hingga maksimal (Scroll Wheel KE BAWAH di Tantra)
-        self.log("🔭 [Auto Camera] Memundurkan kamera (Full Zoom Out ke bawah)...")
+        nav_cfg = self.config.get("auto_nav", {})
+        low_spec = bool(nav_cfg.get("low_spec_mode", False))
+
+        # Pengaturan adaptif berdasarkan performa hardware
+        if low_spec:
+            self.log("🐢 [Auto Camera] Mode PC Low-Spec AKTIF (Jeda render diperpanjang untuk stabilitas).")
+            zoom_clicks = 32
+            post_zoom_settle = max(1.2, float(nav_cfg.get("post_zoom_settle_sec", 1.2)))
+            rot_duration = 0.16
+            settle_delay = max(0.22, float(nav_cfg.get("align_settle_delay", 0.22)))
+            max_sweeps = max(35, int(nav_cfg.get("align_max_search_steps", 35)))
+            match_threshold = float(nav_cfg.get("align_match_threshold", 0.38))
+        else:
+            zoom_clicks = 25
+            post_zoom_settle = float(nav_cfg.get("post_zoom_settle_sec", 0.8))
+            rot_duration = 0.22
+            settle_delay = float(nav_cfg.get("align_settle_delay", 0.15))
+            max_sweeps = int(nav_cfg.get("align_max_search_steps", 25))
+            match_threshold = float(nav_cfg.get("align_match_threshold", 0.45))
+
         client_w = self.config.get("window", "client_width", 800)
         client_h = self.config.get("window", "client_height", 600)
         center_x = client_w // 2
         center_y = int(client_h * 0.45)
+
+        # 1. Zoom out kamera hingga maksimal (Scroll Wheel KE BAWAH di Tantra)
+        self.log(f"🔭 [Auto Camera] Memundurkan kamera (Full Zoom Out ke bawah {zoom_clicks} clicks)...")
         self.input.move_to(center_x, center_y)
         time.sleep(0.1)
-        self.input.scroll_down(clicks=25)
-        time.sleep(0.4)
-
-        nav_cfg = self.config.get("auto_nav", {})
-        max_retries = int(nav_cfg.get("max_align_retries", 18))
+        self.input.scroll_down(clicks=zoom_clicks)
+        time.sleep(post_zoom_settle)
 
         # 2. Pindai sudut putaran kamera hingga tag Jeweler Ashuri terlihat
         found_tag = None
-        for sweep in range(max_retries):
+        for sweep in range(max_sweeps):
             if not self.is_running:
                 return False
 
             client_img = self.screen.capture_client()
-            found_tag = self.matcher.detect_npc_tag(client_img, target_npc="ashuri")
+            found_tag = self.matcher.detect_npc_tag(client_img, target_npc="ashuri", threshold=match_threshold)
             if found_tag:
                 self.log(f"🔭 [Auto Camera] Tag Jeweler Ashuri terverifikasi di ({found_tag[0]}, {found_tag[1]}) [IoU: {found_tag[2]:.2f}].")
                 break
 
-            self.log(f"🔭 [Auto Camera] Memutar pandangan ({sweep + 1}/{max_retries})...")
-            self.input.hold_key("left", 0.35)
-            time.sleep(0.15)
+            self.log(f"🔭 [Auto Camera] Memutar pandangan ({sweep + 1}/{max_sweeps})...")
+            self.input.hold_key("left", rot_duration)
+            time.sleep(settle_delay)
+
+        # Fallback Recovery: Jika belum ketemu, coba zoom ulang dan sweep ke arah sebaliknya atau putar halus
+        if not found_tag:
+            self.log("⚠️ [Auto Camera] Putaran pertama belum menemukan Ashuri. Mencoba kalibrasi ulang zoom & putar halus...")
+            self.input.move_to(center_x, center_y)
+            self.input.scroll_down(clicks=20)
+            time.sleep(post_zoom_settle)
+
+            for recovery_sweep in range(15):
+                if not self.is_running:
+                    return False
+                client_img = self.screen.capture_client()
+                found_tag = self.matcher.detect_npc_tag(client_img, target_npc="ashuri", threshold=match_threshold - 0.05)
+                if found_tag:
+                    self.log(f"🔭 [Auto Camera] Tag Jeweler Ashuri terverifikasi pada recovery sweep ({found_tag[0]}, {found_tag[1]}) [IoU: {found_tag[2]:.2f}].")
+                    break
+                self.input.hold_key("left", 0.18)
+                time.sleep(settle_delay + 0.05)
 
         if not found_tag:
             self.log("⚠️ [Auto Camera] Gagal menemukan Jeweler Ashuri setelah putaran 360°. Melanjutkan dengan sudut saat ini.")
@@ -711,12 +779,15 @@ class FarmerBot:
         # 3. Penyelarasan Presisi (Centering posisi X ke tengah layar ~375 - 410)
         target_min_x = 375
         target_max_x = 410
-        for adj in range(12):
+        fine_tap_dur = 0.05 if low_spec else 0.06
+        fine_settle = settle_delay if low_spec else 0.12
+
+        for adj in range(15):
             if not self.is_running:
                 return False
 
             client_img = self.screen.capture_client()
-            tag_pos = self.matcher.detect_npc_tag(client_img, target_npc="ashuri")
+            tag_pos = self.matcher.detect_npc_tag(client_img, target_npc="ashuri", threshold=match_threshold)
             if not tag_pos:
                 break
 
@@ -727,12 +798,12 @@ class FarmerBot:
 
             if cur_x > target_max_x:
                 # Ashuri di sebelah kanan tengah -> tap Panah Kanan sedikit
-                self.input.hold_key("right", 0.06)
+                self.input.hold_key("right", fine_tap_dur)
             elif cur_x < target_min_x:
                 # Ashuri di sebelah kiri tengah -> tap Panah Kiri sedikit
-                self.input.hold_key("left", 0.06)
+                self.input.hold_key("left", fine_tap_dur)
 
-            time.sleep(0.12)
+            time.sleep(fine_settle)
 
         self.log("✅ [Auto Camera] Penyelarasan sudut kamera selesai.")
         return True

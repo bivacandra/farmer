@@ -453,12 +453,17 @@ class FarmerGUI(tk.Tk):
         self.notebook.add(self.tab_inspector, text=" 🔍 Deteksi Slot Kosong ")
         self._build_inspector_tab()
 
-        # Tab 4: Blacklist Gudang
+        # Tab 4: Blacklist Simpan Gudang (Tas -> Gudang)
         self.tab_storage_whitelist = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_storage_whitelist, text=" 🚫 Blacklist Gudang ")
+        self.notebook.add(self.tab_storage_whitelist, text=" 🚫 Blacklist Simpan Gudang ")
         self._build_storage_whitelist_tab()
 
-        # Tab 5: Blacklist Jual Merchant NPC
+        # Tab 5: Blacklist Tarik Gudang (Gudang -> Tas)
+        self.tab_storage_withdraw_blacklist = ttk.Frame(self.notebook, style="Card.TFrame")
+        self.notebook.add(self.tab_storage_withdraw_blacklist, text=" 🚫 Blacklist Tarik Gudang ")
+        self._build_storage_withdraw_blacklist_tab()
+
+        # Tab 6: Blacklist Jual Merchant NPC
         self.tab_whitelist = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(self.tab_whitelist, text=" 🚫 Blacklist Jual NPC ")
         self._build_whitelist_tab()
@@ -1326,10 +1331,199 @@ class FarmerGUI(tk.Tk):
             del_btn.pack(side=tk.RIGHT)
 
     def delete_storage_blacklist_icon(self, path: Path):
-        if messagebox.askyesno("Konfirmasi", f"Hapus '{path.name}' dari Blacklist Gudang?"):
+        if messagebox.askyesno("Konfirmasi", f"Hapus '{path.name}' dari Blacklist Simpan Gudang?"):
             try:
                 path.unlink()
                 self.refresh_storage_blacklist_view()
+            except Exception as e:
+                messagebox.showerror("Error", f"Gagal menghapus: {e}")
+
+    # =========================================================================
+    # TAB: Blacklist Tarik Gudang (Item Ditinggalkan di Gudang - Storage -> Tas)
+    # =========================================================================
+    def _build_storage_withdraw_blacklist_tab(self):
+        _, scroll_inner = self._create_scrollable_container(self.tab_storage_withdraw_blacklist)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        desc = tk.Label(
+            container,
+            text="Aturan Penarikan Gudang (Storage) ke Tas (Inventory):\n"
+                 "• 🚫 BLACKLIST TARIK GUDANG: Item di daftar ini TIDAK AKAN ditarik ke tas (tetap aman di gudang, misal: Ore, Potion cadangan, Equip simpanan).\n"
+                 "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan ditarik ke slot tas kosong sampai tas penuh untuk dijual ke pedagang.",
+            font=("Segoe UI", 9),
+            bg="#222428",
+            fg="#8b949e",
+            justify=tk.LEFT
+        )
+        desc.pack(anchor=tk.W, pady=(0, 10))
+
+        # Checkboxes bar
+        cfg_bar = tk.Frame(container, bg="#161b22", padx=12, pady=8, relief="ridge", bd=1)
+        cfg_bar.pack(fill=tk.X, pady=(0, 10))
+
+        self.var_storage_withdraw_blacklist_enabled = tk.BooleanVar(
+            value=self.config.get("storage_withdraw", "blacklist_enabled", True)
+        )
+        cb1 = tk.Checkbutton(
+            cfg_bar,
+            text="Aktifkan Blacklist Tarik Gudang (Jangan tarik item yang cocok dengan Ikon Blacklist)",
+            variable=self.var_storage_withdraw_blacklist_enabled,
+            bg="#161b22",
+            fg="#e1e2e6",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9, "bold"),
+            command=self._on_toggle_storage_withdraw_blacklist
+        )
+        cb1.pack(anchor=tk.W)
+
+        # Blacklist Tarik Gudang Box
+        self.box_storage_withdraw_frame = tk.LabelFrame(
+            container,
+            text=" 🚫 Daftar Item Blacklist Tarik Gudang (Ditinggalkan di Gudang) ",
+            bg="#222428",
+            fg="#f85149",
+            font=("Segoe UI", 10, "bold"),
+            padx=10,
+            pady=10
+        )
+        self.box_storage_withdraw_frame.pack(fill=tk.BOTH, expand=True)
+
+        btn_bar = tk.Frame(self.box_storage_withdraw_frame, bg="#222428")
+        btn_bar.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="✂️ Potong dari Slot Gudang...",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=12,
+            pady=5,
+            command=lambda: self.crop_icon_dialog(target="storage_withdraw_blacklist", source_area="storage")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="✂️ Potong dari Slot Tas...",
+            font=("Segoe UI", 9),
+            bg="#30363d",
+            fg="#e1e2e6",
+            relief="flat",
+            padx=10,
+            pady=5,
+            command=lambda: self.crop_icon_dialog(target="storage_withdraw_blacklist", source_area="inventory")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="➕ Tambah Gambar...",
+            font=("Segoe UI", 9),
+            bg="#30363d",
+            fg="#e1e2e6",
+            relief="flat",
+            padx=10,
+            pady=5,
+            command=lambda: self.add_whitelist_icon(target="storage_withdraw_blacklist")
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="🔄 Refresh",
+            font=("Segoe UI", 8),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self.refresh_storage_withdraw_blacklist_view
+        ).pack(side=tk.LEFT)
+
+        self.storage_withdraw_blacklist_frame = tk.Frame(self.box_storage_withdraw_frame, bg="#161b22", relief="sunken", bd=1)
+        self.storage_withdraw_blacklist_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.refresh_storage_withdraw_blacklist_view()
+
+    def _on_toggle_storage_withdraw_blacklist(self):
+        val = self.var_storage_withdraw_blacklist_enabled.get()
+        if "storage_withdraw" not in self.config.data:
+            self.config.data["storage_withdraw"] = {}
+        self.config.data["storage_withdraw"]["blacklist_enabled"] = val
+        self.config.save()
+        self.append_log(f"Blacklist Tarik Gudang diatur ke: {'AKTIF' if val else 'NON-AKTIF'}")
+
+    def refresh_storage_withdraw_blacklist_view(self):
+        for widget in self.storage_withdraw_blacklist_frame.winfo_children():
+            widget.destroy()
+
+        bl_dir = self.config.storage_withdraw_blacklist_dir
+        icons = sorted(list(bl_dir.glob("*.png")) + list(bl_dir.glob("*.jpg")), key=lambda p: p.name.lower())
+
+        if hasattr(self, 'box_storage_withdraw_frame'):
+            self.box_storage_withdraw_frame.config(text=f" 🚫 Daftar Item Blacklist Tarik Gudang ({len(icons)} Item Terdaftar) ")
+
+        if not icons:
+            empty_lbl = tk.Label(
+                self.storage_withdraw_blacklist_frame,
+                text="Belum ada item dalam Blacklist Tarik Gudang.\nItem di sini tidak akan ditarik dari gudang ke tas.",
+                bg="#161b22",
+                fg="#8b949e",
+                pady=30
+            )
+            empty_lbl.pack()
+            return
+
+        canvas = tk.Canvas(self.storage_withdraw_blacklist_frame, bg="#161b22", highlightthickness=0)
+        scroll = tk.Scrollbar(self.storage_withdraw_blacklist_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#161b22")
+
+        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scroll.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._storage_withdraw_bl_images = []
+        for p in icons:
+            row = tk.Frame(scrollable_frame, bg="#21262d", pady=3, padx=6)
+            row.pack(fill=tk.X, padx=6, pady=3)
+
+            try:
+                pil_img = Image.open(p).resize((32, 32), Image.Resampling.NEAREST)
+                tk_img = ImageTk.PhotoImage(pil_img)
+                self._storage_withdraw_bl_images.append(tk_img)
+
+                img_lbl = tk.Label(row, image=tk_img, bg="#21262d")
+                img_lbl.pack(side=tk.LEFT, padx=(0, 8))
+            except Exception:
+                pass
+
+            name_lbl = tk.Label(row, text=p.stem, font=("Segoe UI", 9, "bold"), bg="#21262d", fg="#e1e2e6")
+            name_lbl.pack(side=tk.LEFT)
+
+            badge = tk.Label(row, text=" [Ditinggal di Gudang] ", font=("Segoe UI", 7, "bold"), bg="#d29922", fg="#0d1117", padx=4, pady=1)
+            badge.pack(side=tk.LEFT, padx=(8, 0))
+
+            del_btn = tk.Button(
+                row,
+                text="Hapus",
+                font=("Segoe UI", 8),
+                bg="#30363d",
+                fg="#e1e2e6",
+                relief="flat",
+                command=lambda path=p: self.delete_storage_withdraw_blacklist_icon(path)
+            )
+            del_btn.pack(side=tk.RIGHT)
+
+    def delete_storage_withdraw_blacklist_icon(self, path: Path):
+        if messagebox.askyesno("Konfirmasi", f"Hapus '{path.name}' dari Blacklist Tarik Gudang?"):
+            try:
+                path.unlink()
+                self.refresh_storage_withdraw_blacklist_view()
             except Exception as e:
                 messagebox.showerror("Error", f"Gagal menghapus: {e}")
 
@@ -1469,8 +1663,10 @@ class FarmerGUI(tk.Tk):
                 messagebox.showerror("Error", f"Gagal menghapus: {e}")
 
     def _get_target_dir_and_title(self, target: str):
-        if target == "storage_blacklist":
-            return self.config.storage_blacklist_dir, "Blacklist Gudang"
+        if target == "storage_withdraw_blacklist":
+            return self.config.storage_withdraw_blacklist_dir, "Blacklist Tarik Gudang"
+        elif target == "storage_blacklist":
+            return self.config.storage_blacklist_dir, "Blacklist Simpan Gudang"
         else:
             return self.config.merchant_blacklist_dir, "Blacklist Jual NPC"
 
@@ -1510,7 +1706,9 @@ class FarmerGUI(tk.Tk):
             try:
                 im = Image.open(src)
                 im.save(dest)
-                if target == "storage_blacklist":
+                if target == "storage_withdraw_blacklist":
+                    self.refresh_storage_withdraw_blacklist_view()
+                elif target == "storage_blacklist":
                     self.refresh_storage_blacklist_view()
                 else:
                     self.refresh_whitelist_view()
@@ -1519,22 +1717,30 @@ class FarmerGUI(tk.Tk):
             except Exception as e:
                 messagebox.showerror("Error", f"Gagal menyimpan ikon: {e}")
 
-    def crop_icon_dialog(self, target: str = "storage_blacklist"):
+    def crop_icon_dialog(self, target: str = "storage_blacklist", source_area: str = "inventory"):
         target_dir, target_name = self._get_target_dir_and_title(target)
 
-        inv_cfg = self.config.get("inventory", {})
-        cols = int(inv_cfg.get("cols", 6))
-        rows = int(inv_cfg.get("rows", 4))
+        is_storage_src = (source_area == "storage")
+        if is_storage_src:
+            store_cfg = self.config.get("storage", {})
+            cols = int(store_cfg.get("cols", 10))
+            rows = int(store_cfg.get("rows", 12))
+            source_label = "Gudang (Storage)"
+        else:
+            inv_cfg = self.config.get("inventory", {})
+            cols = int(inv_cfg.get("cols", 6))
+            rows = int(inv_cfg.get("rows", 4))
+            source_label = "Tas (Inventory)"
 
         win = tk.Toplevel(self)
-        win.title(f"Potong Ikon Slot Tas ({target_name})")
+        win.title(f"Potong Ikon Slot {source_label} ({target_name})")
         win.geometry("450x390")
         win.configure(bg="#222428")
         win.resizable(False, False)
 
         tk.Label(
             win,
-            text=f"Potong Ikon dari Slot Tas ({target_name})",
+            text=f"Potong Ikon dari Slot {source_label}\n({target_name})",
             font=("Segoe UI", 11, "bold"),
             bg="#222428",
             fg="#58a6ff"
@@ -1542,7 +1748,7 @@ class FarmerGUI(tk.Tk):
 
         tk.Label(
             win,
-            text=f"Grid Tas Terkalibrasi: {cols} Kolom x {rows} Baris ({cols * rows} Slot)",
+            text=f"Grid {source_label} Terkalibrasi: {cols} Kolom x {rows} Baris ({cols * rows} Slot)",
             font=("Segoe UI", 8),
             bg="#222428",
             fg="#8b949e"
@@ -1599,7 +1805,10 @@ class FarmerGUI(tk.Tk):
                 time.sleep(0.35)
 
                 client_img = self.screen.capture_client()
-                crop = self.bot.get_inventory_slot_crop(client_img, c, r)
+                if is_storage_src:
+                    crop = self.bot.get_storage_slot_crop(client_img, c, r)
+                else:
+                    crop = self.bot.get_inventory_slot_crop(client_img, c, r)
                 return crop
             except Exception as ex:
                 messagebox.showerror("Error", f"Gagal mengambil slot: {ex}")
@@ -1637,7 +1846,9 @@ class FarmerGUI(tk.Tk):
             save_path = self._get_unique_save_path(target_dir, name, ".png")
             current_crop[0].save(save_path)
 
-            if target == "storage_blacklist":
+            if target == "storage_withdraw_blacklist":
+                self.refresh_storage_withdraw_blacklist_view()
+            elif target == "storage_blacklist":
                 self.refresh_storage_blacklist_view()
             else:
                 self.refresh_whitelist_view()
@@ -2004,7 +2215,8 @@ class FarmerGUI(tk.Tk):
             ("Jeda Pasca Jual NPC (detik):", "delays", "sell_post_delay_sec"),
             ("Sensitivitas Deteksi Kosong (StdDev):", "rules", "empty_slot_threshold"),
             ("Threshold Match Blacklist Jual (0.5 - 1.0):", "rules", "sell_whitelist_match_threshold"),
-            ("Threshold Match Blacklist Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
+            ("Threshold Match Blacklist Simpan Gudang (0.5 - 1.0):", "rules", "storage_blacklist_match_threshold"),
+            ("Threshold Match Blacklist Tarik Gudang (0.5 - 1.0):", "rules", "storage_withdraw_blacklist_match_threshold"),
             ("Threshold Match Popup Storage (0.5 - 1.0):", "storage_popup", "match_threshold"),
             ("Interval Cek Auto Hunt (detik):", "delays", "hunt_loop_interval_sec"),
             ("Waktu Jalan ke Merchant (detik 'W'):", "auto_nav", "walk_to_merchant_sec"),
@@ -2017,7 +2229,7 @@ class FarmerGUI(tk.Tk):
         for i, (label_text, sec, key) in enumerate(fields):
             tk.Label(grid, text=label_text, bg="#222428", fg="#e1e2e6").grid(row=i, column=0, sticky=tk.W, pady=6, padx=(0, 15))
             val = self.config.get(sec, key)
-            if val is None and key == "storage_blacklist_match_threshold":
+            if val is None and key in ("storage_blacklist_match_threshold", "storage_withdraw_blacklist_match_threshold"):
                 val = self.config.get("rules", "sell_whitelist_match_threshold", 0.50)
             if val is None and key == "match_threshold":
                 val = 0.70
@@ -2029,6 +2241,27 @@ class FarmerGUI(tk.Tk):
             e.insert(0, str(val))
             e.grid(row=i, column=1, sticky=tk.W, pady=6)
             self.entries[(sec, key)] = e
+
+        # Low-Spec Mode Checkbox (Issue #14)
+        low_spec_box = tk.LabelFrame(container, text=" 🐢 Optimasi Performa PC (Low-End / Mini-PC Wearnes MP-8101) ", bg="#222428", fg="#d29922", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
+        low_spec_box.pack(fill=tk.X, pady=(15, 0))
+
+        self.var_low_spec_mode = tk.BooleanVar(value=bool(self.config.get("auto_nav", "low_spec_mode", False)))
+        tk.Checkbutton(
+            low_spec_box,
+            text="Aktifkan Mode PC Low-Spec (Core i3, RAM 4GB)\n"
+                 "• Memperpanjang jeda rotasi kamera dan render frame agar tidak blur / drop FPS.\n"
+                 "• Mengatasi masalah kamera berputar-putar tanpa henti saat mencari NPC Ashuri.",
+            variable=self.var_low_spec_mode,
+            bg="#222428",
+            fg="#e1e2e6",
+            selectcolor="#0d1117",
+            activebackground="#222428",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9),
+            justify=tk.LEFT,
+            command=self._on_toggle_low_spec_mode
+        ).pack(anchor=tk.W)
 
         # Hotkeys Configuration Box
         hk_box = tk.LabelFrame(container, text=" ⌨️ Pengaturan Shortcut / Global Hotkeys ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
@@ -2187,6 +2420,13 @@ class FarmerGUI(tk.Tk):
         }
         self.speed_status_lbl.config(text=desc_map.get(sp, f"Level {sp}"))
 
+    def _on_toggle_low_spec_mode(self):
+        val = self.var_low_spec_mode.get()
+        self.config.set("auto_nav", "low_spec_mode", val)
+        self.config.save()
+        status_text = "AKTIF (Optimasi Core i3 / RAM 4GB)" if val else "NON-AKTIF"
+        self.append_log(f"🐢 Mode PC Low-Spec diatur ke: {status_text}")
+
     def save_settings(self):
         try:
             for (sec, key), e in self.entries.items():
@@ -2205,6 +2445,10 @@ class FarmerGUI(tk.Tk):
                 post_dur = round(max(0.02, 0.25 - (sp - 1) * 0.025), 3)
                 self.config.set("delays", "drag_duration_sec", drag_dur)
                 self.config.set("delays", "post_action_delay_sec", post_dur)
+
+            # Simpan Mode PC Low-Spec (Issue #14)
+            if hasattr(self, "var_low_spec_mode"):
+                self.config.set("auto_nav", "low_spec_mode", bool(self.var_low_spec_mode.get()))
 
             # Simpan Shortcut Keyboard
             if hasattr(self, "hk_entries"):
