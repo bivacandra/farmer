@@ -698,6 +698,13 @@ class FarmerBot:
         nav_cfg = self.config.get("auto_nav", {})
         low_spec = bool(nav_cfg.get("low_spec_mode", False))
 
+        # Validasi ketersediaan file template NPC
+        tpl_ashuri = self.matcher.templates_dir / "npc_ashuri_exact.png"
+        if not tpl_ashuri.exists() and not (self.matcher.templates_dir / "npc_ashuri_tag.png").exists():
+            self.log("❌ [Auto Camera] Template 'npc_ashuri_exact.png' tidak ditemukan di assets/templates/!")
+            self.log("💡 Pastikan Anda menjalankan installer TantraFarmer-Setup.exe atau mengekstrak file rilis ZIP secara lengkap.")
+            return False
+
         # Pengaturan adaptif berdasarkan performa hardware
         if low_spec:
             self.log("🐢 [Auto Camera] Mode PC Low-Spec AKTIF (Jeda render diperpanjang untuk stabilitas).")
@@ -807,6 +814,13 @@ class FarmerBot:
         npc_label = "Tradesman Abahan (Gudang)" if npc_type == "storage" else "Jeweler Ashuri (Pedagang)"
         target_key = "abahan" if npc_type == "storage" else "ashuri"
         self.log(f"🤝 [NPC Interact] Mencari {npc_label}...")
+
+        # Validasi ketersediaan file template NPC
+        tpl_name = "npc_ashuri_exact.png" if target_key == "ashuri" else "npc_abahan_exact.png"
+        if not (self.matcher.templates_dir / tpl_name).exists() and not (self.matcher.templates_dir / f"npc_{target_key}_tag.png").exists():
+            self.log(f"❌ [NPC Interact] Template '{tpl_name}' tidak ditemukan di assets/templates/!")
+            self.log("💡 Pastikan Anda menjalankan installer TantraFarmer-Setup.exe atau mengekstrak file rilis ZIP secara lengkap.")
+            return False
 
         nav_cfg = self.config.get("auto_nav", {})
         y_offset = int(nav_cfg.get("npc_click_y_offset", 50))
