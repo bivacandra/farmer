@@ -437,38 +437,71 @@ class FarmerGUI(tk.Tk):
                 self.title_lbl.config(text="Tantra Auto-Farmer & Inventory Manager", font=("Segoe UI", 13, "bold"))
             self.append_log("Tampilan dialihkan ke Mode Normal.")
 
+        self._update_tab_titles(is_compact)
+        if hasattr(self, "_mode_radiobuttons") and self._mode_radiobuttons:
+            wrap_val = 430 if is_compact else 820
+            for rb in self._mode_radiobuttons:
+                try:
+                    rb.config(wraplength=wrap_val)
+                except Exception:
+                    pass
+
+    def _update_tab_titles(self, is_compact: bool):
+        """Switches notebook tabs between icon-only (compact) and full descriptive titles (normal)."""
+        if not hasattr(self, "notebook"):
+            return
+        tabs = [
+            (getattr(self, "tab_dashboard", None), "📊", "📊 Dashboard"),
+            (getattr(self, "tab_area", None), "🎯", "🎯 Kalibrasi Area"),
+            (getattr(self, "tab_inspector", None), "🔍", "🔍 Deteksi Slot"),
+            (getattr(self, "tab_storage_whitelist", None), "📥", "📥 Blacklist Simpan"),
+            (getattr(self, "tab_storage_withdraw_blacklist", None), "📤", "📤 Blacklist Tarik"),
+            (getattr(self, "tab_whitelist", None), "💰", "💰 Blacklist Jual"),
+            (getattr(self, "tab_skill", None), "⚡", "⚡ Auto Skill"),
+            (getattr(self, "tab_pot", None), "🧪", "🧪 Auto Pot"),
+            (getattr(self, "tab_settings", None), "⚙️", "⚙️ Pengaturan")
+        ]
+        for frame, icon_txt, full_txt in tabs:
+            if frame is None:
+                continue
+            txt = f" {icon_txt} " if is_compact else f" {full_txt} "
+            try:
+                self.notebook.tab(frame, text=txt)
+            except Exception:
+                pass
+
     def _build_notebook(self):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
 
         # Tab 1: Dashboard / Runner
         self.tab_dashboard = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_dashboard, text=" Dashboard & Kontrol ")
+        self.notebook.add(self.tab_dashboard, text=" 📊 Dashboard ")
         self._build_dashboard_tab()
 
         # Tab 2: Area Calibration (Select Area)
         self.tab_area = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_area, text=" 🎯 Kalibrasi Area (Select Area) ")
+        self.notebook.add(self.tab_area, text=" 🎯 Kalibrasi Area ")
         self._build_area_tab()
 
         # Tab 3: Visual Slot Inspector (Empty vs Occupied)
         self.tab_inspector = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_inspector, text=" 🔍 Deteksi Slot Kosong ")
+        self.notebook.add(self.tab_inspector, text=" 🔍 Deteksi Slot ")
         self._build_inspector_tab()
 
         # Tab 4: Blacklist Simpan Gudang (Tas -> Gudang)
         self.tab_storage_whitelist = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_storage_whitelist, text=" 🚫 Blacklist Simpan Gudang ")
+        self.notebook.add(self.tab_storage_whitelist, text=" 📥 Blacklist Simpan ")
         self._build_storage_whitelist_tab()
 
         # Tab 5: Blacklist Tarik Gudang (Gudang -> Tas)
         self.tab_storage_withdraw_blacklist = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_storage_withdraw_blacklist, text=" 🚫 Blacklist Tarik Gudang ")
+        self.notebook.add(self.tab_storage_withdraw_blacklist, text=" 📤 Blacklist Tarik ")
         self._build_storage_withdraw_blacklist_tab()
 
         # Tab 6: Blacklist Jual Merchant NPC
         self.tab_whitelist = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_whitelist, text=" 🚫 Blacklist Jual NPC ")
+        self.notebook.add(self.tab_whitelist, text=" 💰 Blacklist Jual ")
         self._build_whitelist_tab()
 
         # Tab 7: Auto Skill
@@ -483,14 +516,18 @@ class FarmerGUI(tk.Tk):
 
         # Tab 9: Settings
         self.tab_settings = ttk.Frame(self.notebook, style="Card.TFrame")
-        self.notebook.add(self.tab_settings, text=" Pengaturan & Delay ")
+        self.notebook.add(self.tab_settings, text=" ⚙️ Pengaturan ")
         self._build_settings_tab()
+
+        # Update tab titles according to initial compact mode state
+        self._update_tab_titles(self.is_compact_mode)
 
     # =========================================================================
     # TAB 1: Dashboard
     # =========================================================================
     def _build_dashboard_tab(self):
-        container = tk.Frame(self.tab_dashboard, bg="#222428", padx=16, pady=14)
+        _, scroll_inner = self._create_scrollable_container(self.tab_dashboard)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
         mode_frame = tk.LabelFrame(container, text=" Pilih Mode Operasi ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
@@ -499,14 +536,17 @@ class FarmerGUI(tk.Tk):
         self.selected_mode = tk.StringVar(value="auto_storage_merchant_loop")
 
         modes = [
-            ("🔄 Full Auto Loop (Tarik Gudang Abahan & Jual ke Jeweler Ashuri)", "auto_storage_merchant_loop"),
-            ("⚔️ Auto Hunt Loop (Auto Pindah ke Gudang + Auto Skill sambil Hunt)", "hunt_auto_deposit"),
-            ("⚡ Auto Skill Standalone (Hanya Jalankan Auto Skill tanpa pindah tas)", "auto_skill_standalone"),
-            ("🧪 Auto Pot Standalone (Hanya Jalankan Auto Pot HP/TP tanpa aksi lain)", "auto_pot_standalone"),
-            ("Inventory -> Storage (Sekali jalan: Simpan ke Gudang dengan Filter Blacklist)", "inv_to_storage"),
-            ("Storage -> Inventory (Sekali jalan: Tarik barang ke Slot Kosong Tas)", "storage_to_inv"),
-            ("Inventory -> NPC Merchant (Sekali jalan: Jual item tas kecuali Blacklist)", "inv_to_merchant")
+            ("🔄 Full Auto Loop (Tarik Gudang ➔ Jual NPC Ashuri)", "auto_storage_merchant_loop"),
+            ("⚔️ Auto Hunt Loop (Auto Simpan Gudang + Auto Skill)", "hunt_auto_deposit"),
+            ("⚡ Auto Skill Standalone (Hanya Auto Skill tanpa pindah tas)", "auto_skill_standalone"),
+            ("🧪 Auto Pot Standalone (Hanya Auto Pot HP/TP tanpa aksi lain)", "auto_pot_standalone"),
+            ("📥 Tas ➔ Gudang (Simpan ke Gudang dengan Filter Blacklist)", "inv_to_storage"),
+            ("📤 Gudang ➔ Tas (Tarik barang ke Slot Kosong Tas)", "storage_to_inv"),
+            ("💰 Tas ➔ NPC Merchant (Jual item tas kecuali Blacklist)", "inv_to_merchant")
         ]
+
+        self._mode_radiobuttons = []
+        wrap_val = 430 if self.is_compact_mode else 820
 
         for text, val in modes:
             rb = tk.Radiobutton(
@@ -519,9 +559,13 @@ class FarmerGUI(tk.Tk):
                 selectcolor="#161b22",
                 activebackground="#222428",
                 activeforeground="#58a6ff",
-                font=("Segoe UI", 10)
+                font=("Segoe UI", 10),
+                wraplength=wrap_val,
+                justify=tk.LEFT,
+                anchor=tk.W
             )
-            rb.pack(anchor=tk.W, pady=3)
+            rb.pack(anchor=tk.W, fill=tk.X, pady=3)
+            self._mode_radiobuttons.append(rb)
 
         # Row 1: Primary Action Buttons (Start / Stop)
         act_row = tk.Frame(container, bg="#222428", pady=4)
@@ -1938,21 +1982,26 @@ class FarmerGUI(tk.Tk):
             font=("Segoe UI", 9)
         ).pack(anchor=tk.W, pady=(2, 6))
 
-        # Mode Selection
+        # Mode Selection Bar (2-row layout: Row 1 Header, Row 2 Options)
         mode_box = tk.Frame(top_frame, bg="#0d1117", padx=8, pady=6, relief="groove", bd=1)
-        mode_box.pack(fill=tk.X, pady=(2, 8))
+        mode_box.pack(fill=tk.X, pady=(2, 6))
 
+        mode_header_row = tk.Frame(mode_box, bg="#0d1117")
+        mode_header_row.pack(fill=tk.X, pady=(0, 4))
         tk.Label(
-            mode_box,
+            mode_header_row,
             text="Pilih Mode Auto Skill:",
             bg="#0d1117",
             fg="#d29922",
             font=("Segoe UI", 9, "bold")
-        ).pack(side=tk.LEFT, padx=(0, 10))
+        ).pack(side=tk.LEFT)
+
+        mode_opts_row = tk.Frame(mode_box, bg="#0d1117")
+        mode_opts_row.pack(fill=tk.X)
 
         tk.Radiobutton(
-            mode_box,
-            text="🎯 Smart Combo (Visual Cooldown Deteksi & Rotasi)",
+            mode_opts_row,
+            text="🎯 Smart Combo (Cooldown Deteksi & Rotasi)",
             variable=self.var_skill_mode,
             value="smart_combo",
             command=self._on_skill_mode_changed,
@@ -1965,8 +2014,8 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 14))
 
         tk.Radiobutton(
-            mode_box,
-            text="⏱️ Timer Interval (Spam berkala sesuai detik)",
+            mode_opts_row,
+            text="⏱️ Timer Interval (Spam berkala)",
             variable=self.var_skill_mode,
             value="timer_interval",
             command=self._on_skill_mode_changed,
@@ -1983,7 +2032,7 @@ class FarmerGUI(tk.Tk):
 
         tk.Button(
             btn_bar,
-            text="💾 Simpan Pengaturan Skill",
+            text="💾 Simpan Skill",
             font=("Segoe UI", 8, "bold"),
             bg="#238636",
             fg="#ffffff",
@@ -1995,7 +2044,7 @@ class FarmerGUI(tk.Tk):
 
         tk.Button(
             btn_bar,
-            text="🔄 Reset Status / Rotasi",
+            text="🔄 Reset Status",
             font=("Segoe UI", 8),
             bg="#30363d",
             fg="#c9d1d9",
@@ -2007,7 +2056,7 @@ class FarmerGUI(tk.Tk):
 
         tk.Button(
             btn_bar,
-            text="🔍 Test Cek Cooldown Sekarang",
+            text="🔍 Test Cooldown",
             font=("Segoe UI", 8, "bold"),
             bg="#1f6feb",
             fg="#ffffff",
@@ -2036,11 +2085,12 @@ class FarmerGUI(tk.Tk):
         )
         target_frame.pack(fill=tk.X, pady=(0, 6))
 
-        tgt_inner = tk.Frame(target_frame, bg="#161b22")
-        tgt_inner.pack(fill=tk.X)
+        # Row 1: Checkbox + Live Status Badge
+        tgt_r1 = tk.Frame(target_frame, bg="#161b22")
+        tgt_r1.pack(fill=tk.X, pady=(0, 4))
 
         tk.Checkbutton(
-            tgt_inner,
+            tgt_r1,
             text="Tahan Skill jika Target Kosong (Hanya serang saat ada target)",
             variable=self.var_target_monster_enabled,
             bg="#161b22",
@@ -2049,11 +2099,24 @@ class FarmerGUI(tk.Tk):
             activebackground="#161b22",
             activeforeground="#58a6ff",
             font=("Segoe UI", 8, "bold")
-        ).pack(side=tk.LEFT, padx=(0, 10))
+        ).pack(side=tk.LEFT)
+
+        self.lbl_target_monster_live = tk.Label(
+            tgt_r1,
+            text="[STOPPED]",
+            bg="#161b22",
+            fg="#8b949e",
+            font=("Segoe UI", 8, "bold")
+        )
+        self.lbl_target_monster_live.pack(side=tk.RIGHT, padx=4)
+
+        # Row 2: Calibration, Area Info, & Test Button
+        tgt_r2 = tk.Frame(target_frame, bg="#161b22")
+        tgt_r2.pack(fill=tk.X)
 
         tk.Button(
-            tgt_inner,
-            text="🎯 Kalibrasi Kotak Target Monster",
+            tgt_r2,
+            text="🎯 Kalibrasi Kotak Target",
             font=("Segoe UI", 8, "bold"),
             bg="#8957e5",
             fg="#ffffff",
@@ -2064,7 +2127,7 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         self.lbl_target_monster_info = tk.Label(
-            tgt_inner,
+            tgt_r2,
             text="Kotak: -",
             bg="#161b22",
             fg="#8b949e",
@@ -2074,7 +2137,7 @@ class FarmerGUI(tk.Tk):
         self._update_target_monster_label()
 
         tk.Button(
-            tgt_inner,
+            tgt_r2,
             text="🔍 Test Cek Target Sekarang",
             font=("Segoe UI", 8),
             bg="#1f6feb",
@@ -2083,16 +2146,7 @@ class FarmerGUI(tk.Tk):
             padx=8,
             pady=3,
             command=self._test_detect_target_monster
-        ).pack(side=tk.LEFT, padx=(0, 10))
-
-        self.lbl_target_monster_live = tk.Label(
-            tgt_inner,
-            text="[STOPPED]",
-            bg="#161b22",
-            fg="#8b949e",
-            font=("Segoe UI", 8, "bold")
-        )
-        self.lbl_target_monster_live.pack(side=tk.RIGHT, padx=4)
+        ).pack(side=tk.LEFT)
 
         # -------------------------------------------------------------
         # Basic Hunting Actions (E, R, F)
@@ -2174,8 +2228,12 @@ class FarmerGUI(tk.Tk):
         combo_bar_ctrl = tk.Frame(self.tab_combo_attack, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
         combo_bar_ctrl.pack(fill=tk.X, pady=(0, 6))
 
+        # Row 1: Kalibrasi bar & label info
+        cbar_r1 = tk.Frame(combo_bar_ctrl, bg="#161b22")
+        cbar_r1.pack(fill=tk.X, pady=(0, 4))
+
         bar_btn = tk.Button(
-            combo_bar_ctrl,
+            cbar_r1,
             text="🎯 Kalibrasi Bar Skill (10 Slot)",
             font=("Segoe UI", 8, "bold"),
             bg="#8957e5",
@@ -2188,17 +2246,21 @@ class FarmerGUI(tk.Tk):
         bar_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.lbl_quickslot_bar_info = tk.Label(
-            combo_bar_ctrl,
+            cbar_r1,
             text="Bar: -",
             bg="#161b22",
             fg="#8b949e",
             font=("Consolas", 8)
         )
-        self.lbl_quickslot_bar_info.pack(side=tk.LEFT, padx=(0, 15))
+        self.lbl_quickslot_bar_info.pack(side=tk.LEFT)
         self._update_quickslot_bar_label()
 
+        # Row 2: Tambah skill & interval
+        cbar_r2 = tk.Frame(combo_bar_ctrl, bg="#161b22")
+        cbar_r2.pack(fill=tk.X)
+
         tk.Button(
-            combo_bar_ctrl,
+            cbar_r2,
             text="➕ Tambah Skill ke Combo",
             font=("Segoe UI", 8, "bold"),
             bg="#238636",
@@ -2210,7 +2272,7 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 10))
 
         tk.Label(
-            combo_bar_ctrl,
+            cbar_r2,
             text="Interval Cek (detik):",
             bg="#161b22",
             fg="#8b949e",
@@ -2218,7 +2280,7 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 4))
 
         tk.Entry(
-            combo_bar_ctrl,
+            cbar_r2,
             textvariable=self.var_skill_combo_interval,
             width=5,
             bg="#0d1117",
@@ -2259,8 +2321,12 @@ class FarmerGUI(tk.Tk):
         buff_bar_ctrl = tk.Frame(self.tab_combo_buff, bg="#161b22", padx=10, pady=8, relief="ridge", bd=1)
         buff_bar_ctrl.pack(fill=tk.X, pady=(0, 6))
 
+        # Row 1: Checkbox & Calibration & Area Info
+        bbar_r1 = tk.Frame(buff_bar_ctrl, bg="#161b22")
+        bbar_r1.pack(fill=tk.X, pady=(0, 4))
+
         tk.Checkbutton(
-            buff_bar_ctrl,
+            bbar_r1,
             text="🛡️ Aktifkan Auto Buff",
             variable=self.var_buff_enabled,
             bg="#161b22",
@@ -2272,8 +2338,8 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         tk.Button(
-            buff_bar_ctrl,
-            text="🎯 Kalibrasi Floating Buff Area",
+            bbar_r1,
+            text="🎯 Kalibrasi Floating Area",
             font=("Segoe UI", 8, "bold"),
             bg="#8957e5",
             fg="#ffffff",
@@ -2284,17 +2350,21 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         self.lbl_floating_buff_info = tk.Label(
-            buff_bar_ctrl,
+            bbar_r1,
             text="Floating Area: -",
             bg="#161b22",
             fg="#8b949e",
             font=("Consolas", 8)
         )
-        self.lbl_floating_buff_info.pack(side=tk.LEFT, padx=(0, 10))
+        self.lbl_floating_buff_info.pack(side=tk.LEFT)
         self._update_floating_buff_label()
 
+        # Row 2: Tambah buff, interval & test
+        bbar_r2 = tk.Frame(buff_bar_ctrl, bg="#161b22")
+        bbar_r2.pack(fill=tk.X)
+
         tk.Button(
-            buff_bar_ctrl,
+            bbar_r2,
             text="➕ Tambah Buff",
             font=("Segoe UI", 8, "bold"),
             bg="#238636",
@@ -2306,15 +2376,15 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         tk.Label(
-            buff_bar_ctrl,
-            text="Interval Cek (s):",
+            bbar_r2,
+            text="Interval (s):",
             bg="#161b22",
             fg="#8b949e",
             font=("Segoe UI", 8)
         ).pack(side=tk.LEFT, padx=(0, 2))
 
         tk.Entry(
-            buff_bar_ctrl,
+            bbar_r2,
             textvariable=self.var_buff_check_interval,
             width=5,
             bg="#0d1117",
@@ -2324,7 +2394,7 @@ class FarmerGUI(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         tk.Button(
-            buff_bar_ctrl,
+            bbar_r2,
             text="🔍 Test Cek Floating Buff",
             font=("Segoe UI", 8),
             bg="#1f6feb",
