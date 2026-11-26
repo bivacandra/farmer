@@ -12,6 +12,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from PIL import Image
 
 from skill_controller import SkillController
+from pot_controller import PotController
 
 
 class FarmerBot:
@@ -23,6 +24,7 @@ class FarmerBot:
         self.ocr = ocr_engine
         self.config = config
         self.skills = SkillController(self.input, self.wm, self.config, logger=self.log)
+        self.pots = PotController(self.input, self.screen, self.wm, self.config, logger=self.log)
 
         self.is_running = False
         self.log_callback: Optional[Callable[[str], None]] = None
@@ -39,6 +41,7 @@ class FarmerBot:
         self.is_running = False
         self.input.abort()
         self.skills.stop()
+        self.pots.stop()
         self.log("Macro stopped by user.")
 
     # =========================================================================
@@ -546,6 +549,10 @@ class FarmerBot:
         if skill_cfg.get("enabled", True) and skill_cfg.get("sync_with_auto_hunt", True):
             self.skills.start()
 
+        pot_cfg = self.config.get("auto_pot", {})
+        if pot_cfg.get("enabled", True) and pot_cfg.get("sync_with_auto_hunt", True):
+            self.pots.start()
+
         last_logged_slot_status = {}  # slot_idx -> (status_str, bl_name, rounded_score)
 
         try:
@@ -566,6 +573,7 @@ class FarmerBot:
                     self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
                     self.is_running = False
                     self.skills.stop()
+                    self.pots.stop()
                     if hasattr(self, 'on_death_callback') and self.on_death_callback:
                         self.on_death_callback()
                     return
@@ -665,6 +673,7 @@ class FarmerBot:
                             self.log("🛑 Karakter telah mati. Menghentikan seluruh proses makro untuk keamanan akun.")
                             self.is_running = False
                             self.skills.stop()
+                            self.pots.stop()
                             if hasattr(self, 'on_death_callback') and self.on_death_callback:
                                 self.on_death_callback()
                             return
@@ -678,6 +687,7 @@ class FarmerBot:
             self.log(f"Error pada Auto Hunt: {e}")
         finally:
             self.skills.stop()
+            self.pots.stop()
             self.is_running = False
             self.log("Mode Auto Hunt berhenti.")
 

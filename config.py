@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-APP_VERSION = "v1.2.3"
+APP_VERSION = "v1.3.0"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ui": {
@@ -135,6 +135,25 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "f8": {"enabled": False, "interval": 10.0},
             "f9": {"enabled": False, "interval": 10.0},
             "f10": {"enabled": False, "interval": 10.0}
+        }
+    },
+    "auto_pot": {
+        "enabled": False,
+        "sync_with_auto_hunt": True,
+        "check_interval_sec": 0.20,
+        "hp": {
+            "enabled": True,
+            "threshold_pct": 50,
+            "key": "f9",
+            "cooldown_sec": 1.0,
+            "box": {"x": 4, "y": 54, "w": 214, "h": 14}
+        },
+        "tp": {
+            "enabled": True,
+            "threshold_pct": 50,
+            "key": "f10",
+            "cooldown_sec": 1.0,
+            "box": {"x": 4, "y": 69, "w": 214, "h": 14}
         }
     }
 }

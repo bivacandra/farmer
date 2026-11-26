@@ -5,6 +5,22 @@ Format ini mengacu pada prinsip [Keep a Changelog](https://keepachangelog.com/id
 
 ---
 
+## [v1.3.0] - 2026-11-26
+
+### 🟢 Added & Feature Release
+- **Fitur Baru: 🧪 Auto Pot HP & TP Berdasarkan Persentase Bar Karakter**:
+  - Mendeteksi kondisi HP (Red Bar) dan TP/MP (Blue Bar) secara berkala melalui analisis warna pixel dan screen capture yang hemat sumber daya.
+  - Kebal terhadap angka teks/font di atas bar (seperti `56/56` atau `34/34`) melalui *multi-vertical sampling* (15%, 25%, 35%, 80%).
+  - Menyediakan threshold picu persentase yang dapat disesuaikan (default: 50%), tombol hotkey bebas (F1-F10, 1-0, E, R, F), dan proteksi *cooldown* agar tidak boros potion saat pemulihan berlangsung.
+  - **Fitur Kalibrasi Lengkap**:
+    - Tombol `🎯 Calibrate HP Box` & `🎯 Calibrate MP Box` dengan *drag & drop overlay* interaktif di layar.
+    - Tombol `🔍 Auto Detect HUD Bar` untuk deteksi otomatis posisi kotak bar HP dan TP langsung dari layar game.
+    - Opsi penyesuaian manual koordinat (X, Y, W, H) untuk kebutuhan per-pixel fine-tuning.
+    - Tombol & Hotkey global `Shift+End` untuk memeriksa nilai persentase HP & TP saat ini secara langsung (*live test reading*).
+  - Terintegrasi penuh dengan Mode Auto Hunt dan dapat dijalankan secara Standalone.
+
+---
+
 ## [v1.2.3] - 2026-11-26
 
 ### 🛠️ Fixed & Improved

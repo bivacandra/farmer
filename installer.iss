@@ -1,6 +1,6 @@
 ; Inno Setup Script for Tantra Farmer Macro
 #ifndef AppVersion
-#define AppVersion "v1.2.3"
+#define AppVersion "v1.3.0"
 #endif
 
 [Setup]

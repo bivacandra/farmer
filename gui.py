@@ -29,6 +29,7 @@ from ocr_engine import OCREngine
 from farmer_bot import FarmerBot
 from area_selector import AreaSelectorWindow
 from auth import verify_password, hash_password
+from pot_controller import PotController, DEFAULT_POT_CONFIG
 
 try:
     import keyboard
@@ -468,12 +469,17 @@ class FarmerGUI(tk.Tk):
         self.notebook.add(self.tab_whitelist, text=" 🚫 Blacklist Jual NPC ")
         self._build_whitelist_tab()
 
-        # Tab 6: Auto Skill
+        # Tab 7: Auto Skill
         self.tab_skill = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(self.tab_skill, text=" ⚡ Auto Skill ")
         self._build_skill_tab()
 
-        # Tab 7: Settings
+        # Tab 8: Auto Pot
+        self.tab_pot = ttk.Frame(self.notebook, style="Card.TFrame")
+        self.notebook.add(self.tab_pot, text=" 🧪 Auto Pot ")
+        self._build_pot_tab()
+
+        # Tab 9: Settings
         self.tab_settings = ttk.Frame(self.notebook, style="Card.TFrame")
         self.notebook.add(self.tab_settings, text=" Pengaturan & Delay ")
         self._build_settings_tab()
@@ -494,6 +500,7 @@ class FarmerGUI(tk.Tk):
             ("🔄 Full Auto Loop (Tarik Gudang Abahan & Jual ke Jeweler Ashuri)", "auto_storage_merchant_loop"),
             ("⚔️ Auto Hunt Loop (Auto Pindah ke Gudang + Auto Skill sambil Hunt)", "hunt_auto_deposit"),
             ("⚡ Auto Skill Standalone (Hanya Jalankan Auto Skill tanpa pindah tas)", "auto_skill_standalone"),
+            ("🧪 Auto Pot Standalone (Hanya Jalankan Auto Pot HP/TP tanpa aksi lain)", "auto_pot_standalone"),
             ("Inventory -> Storage (Sekali jalan: Simpan ke Gudang dengan Filter Blacklist)", "inv_to_storage"),
             ("Storage -> Inventory (Sekali jalan: Tarik barang ke Slot Kosong Tas)", "storage_to_inv"),
             ("Inventory -> NPC Merchant (Sekali jalan: Jual item tas kecuali Blacklist)", "inv_to_merchant")
@@ -2127,7 +2134,567 @@ class FarmerGUI(tk.Tk):
         self.after(100, self._update_skill_countdowns)
 
     # =========================================================================
-    # TAB 7: Settings
+    # TAB 8: Auto Pot (HP & TP)
+    # =========================================================================
+    def _make_coord_entry(self, parent, label_text: str, default_val: int) -> tk.Entry:
+        tk.Label(parent, text=label_text, font=("Segoe UI", 8), bg="#222428", fg="#8b949e").pack(side=tk.LEFT, padx=(4, 2))
+        entry = tk.Entry(parent, width=5, bg="#161b22", fg="#e1e2e6", insertbackground="#ffffff", font=("Consolas", 8))
+        entry.insert(0, str(default_val))
+        entry.pack(side=tk.LEFT, padx=(0, 6))
+        return entry
+
+    def _build_pot_tab(self):
+        _, scroll_inner = self._create_scrollable_container(self.tab_pot)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=12)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        pot_cfg = self.config.get("auto_pot", DEFAULT_POT_CONFIG)
+        hp_cfg = pot_cfg.get("hp", DEFAULT_POT_CONFIG["hp"])
+        tp_cfg = pot_cfg.get("tp", DEFAULT_POT_CONFIG["tp"])
+
+        # 1. Top Control Header
+        top_frame = tk.Frame(container, bg="#161b22", padx=12, pady=10, relief="ridge", bd=1)
+        top_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.var_pot_enabled = tk.BooleanVar(value=pot_cfg.get("enabled", True))
+        self.var_pot_sync_hunt = tk.BooleanVar(value=pot_cfg.get("sync_with_auto_hunt", True))
+
+        tk.Checkbutton(
+            top_frame,
+            text="🧪 Aktifkan Fitur Auto Pot (Otomatis gunakan pot jika HP / TP berkurang di bawah persentase)",
+            variable=self.var_pot_enabled,
+            bg="#161b22",
+            fg="#58a6ff",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9, "bold")
+        ).pack(anchor=tk.W)
+
+        tk.Checkbutton(
+            top_frame,
+            text="⚔️ Jalankan Auto Pot otomatis saat Mode Auto Hunt berjalan",
+            variable=self.var_pot_sync_hunt,
+            bg="#161b22",
+            fg="#e1e2e6",
+            selectcolor="#0d1117",
+            activebackground="#161b22",
+            activeforeground="#58a6ff",
+            font=("Segoe UI", 9)
+        ).pack(anchor=tk.W, pady=(4, 6))
+
+        # Timing inputs
+        timing_row = tk.Frame(top_frame, bg="#161b22")
+        timing_row.pack(fill=tk.X, pady=(2, 6))
+
+        tk.Label(timing_row, text="⏱️ Cooldown Pot HP/TP (detik):", font=("Segoe UI", 9), bg="#161b22", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_pot_cooldown = tk.Entry(timing_row, width=5, bg="#0d1117", fg="#58a6ff", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_pot_cooldown.insert(0, str(hp_cfg.get("cooldown_sec", 1.0)))
+        self.entry_pot_cooldown.pack(side=tk.LEFT, padx=(4, 16))
+
+        tk.Label(timing_row, text="🔍 Interval Cek Bar (detik):", font=("Segoe UI", 9), bg="#161b22", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_pot_interval = tk.Entry(timing_row, width=5, bg="#0d1117", fg="#58a6ff", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_pot_interval.insert(0, str(pot_cfg.get("check_interval_sec", 0.20)))
+        self.entry_pot_interval.pack(side=tk.LEFT, padx=(4, 0))
+
+        # Buttons bar
+        btn_bar = tk.Frame(top_frame, bg="#161b22")
+        btn_bar.pack(fill=tk.X, pady=(6, 0))
+
+        tk.Button(
+            btn_bar,
+            text="💾 Simpan Pengaturan Pot",
+            font=("Segoe UI", 8, "bold"),
+            bg="#238636",
+            fg="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self._save_pot_settings
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.btn_pot_toggle = tk.Button(
+            btn_bar,
+            text="▶️ Mulai Auto Pot (Standalone)",
+            font=("Segoe UI", 8, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=self._toggle_pot_standalone
+        )
+        self.btn_pot_toggle.pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(
+            btn_bar,
+            text="🔍 Cek Bacaan HP & TP (Shift+End)",
+            font=("Segoe UI", 8),
+            bg="#d29922",
+            fg="#ffffff",
+            relief="flat",
+            padx=10,
+            pady=4,
+            command=lambda: self.test_pot_reading(show_dialog=True)
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.lbl_pot_running_status = tk.Label(btn_bar, text="○ NONAKTIF", font=("Segoe UI", 8, "bold"), bg="#161b22", fg="#8b949e")
+        self.lbl_pot_running_status.pack(side=tk.LEFT, padx=6)
+
+        # 2. HP Section
+        hp_box = hp_cfg.get("box", {"x": 4, "y": 54, "w": 214, "h": 14})
+        hp_frame = tk.LabelFrame(container, text=" ❤️ Pengaturan HP Auto Pot (Karakter) ", bg="#222428", fg="#f85149", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
+        hp_frame.pack(fill=tk.X, pady=6)
+
+        hp_top = tk.Frame(hp_frame, bg="#222428")
+        hp_top.pack(fill=tk.X, pady=(0, 6))
+
+        self.lbl_hp_coords = tk.Label(
+            hp_top,
+            text=f"HP box: X={hp_box.get('x', 4)} Y={hp_box.get('y', 54)} W={hp_box.get('w', 214)} H={hp_box.get('h', 14)}",
+            font=("Consolas", 9, "bold"),
+            bg="#222428",
+            fg="#e1e2e6"
+        )
+        self.lbl_hp_coords.pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Button(
+            hp_top,
+            text="🎯 Calibrate HP Box",
+            font=("Segoe UI", 9, "bold"),
+            bg="#b62324",
+            fg="#ffffff",
+            activebackground="#da3633",
+            relief="flat",
+            padx=12,
+            pady=3,
+            command=self.calibrate_hp_box
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            hp_top,
+            text="🔍 Auto Detect dari Layar",
+            font=("Segoe UI", 9),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=3,
+            command=self.auto_detect_pot_bars
+        ).pack(side=tk.RIGHT, padx=(0, 6))
+
+        # HP Trigger controls
+        hp_ctrl = tk.Frame(hp_frame, bg="#222428")
+        hp_ctrl.pack(fill=tk.X, pady=4)
+
+        self.var_hp_enabled = tk.BooleanVar(value=hp_cfg.get("enabled", True))
+        tk.Checkbutton(
+            hp_ctrl,
+            text="Aktifkan HP Auto Pot",
+            variable=self.var_hp_enabled,
+            bg="#222428",
+            fg="#e1e2e6",
+            selectcolor="#161b22",
+            activebackground="#222428",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 14))
+
+        tk.Label(hp_ctrl, text="HP Trigger Threshold (%):", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_hp_threshold = tk.Entry(hp_ctrl, width=5, bg="#161b22", fg="#f85149", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_hp_threshold.insert(0, str(hp_cfg.get("threshold_pct", 50)))
+        self.entry_hp_threshold.pack(side=tk.LEFT, padx=(4, 16))
+
+        tk.Label(hp_ctrl, text="Tombol Hotkey HP:", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        valid_keys = ["f9", "f10", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "e", "r", "f"]
+        self.combo_hp_key = ttk.Combobox(hp_ctrl, values=valid_keys, width=5, state="readonly", font=("Segoe UI", 9))
+        current_hp_k = str(hp_cfg.get("key", "f9")).lower()
+        self.combo_hp_key.set(current_hp_k if current_hp_k in valid_keys else "f9")
+        self.combo_hp_key.pack(side=tk.LEFT, padx=(4, 0))
+
+        # HP Status row
+        hp_stat = tk.Frame(hp_frame, bg="#161b22", padx=8, pady=4)
+        hp_stat.pack(fill=tk.X, pady=(6, 0))
+
+        self.lbl_hp_status = tk.Label(hp_stat, text="HP: Belum dibaca", font=("Segoe UI", 9, "bold"), bg="#161b22", fg="#8b949e")
+        self.lbl_hp_status.pack(side=tk.LEFT)
+
+        self.lbl_hp_count = tk.Label(hp_stat, text="Total Pot Diminum: 0", font=("Segoe UI", 9), bg="#161b22", fg="#c9d1d9")
+        self.lbl_hp_count.pack(side=tk.RIGHT)
+
+        # 3. TP Section
+        tp_box = tp_cfg.get("box", {"x": 4, "y": 69, "w": 214, "h": 14})
+        tp_frame = tk.LabelFrame(container, text=" 💙 Pengaturan TP/MP Auto Pot (Prana / Mana) ", bg="#222428", fg="#58a6ff", font=("Segoe UI", 10, "bold"), padx=12, pady=10)
+        tp_frame.pack(fill=tk.X, pady=6)
+
+        tp_top = tk.Frame(tp_frame, bg="#222428")
+        tp_top.pack(fill=tk.X, pady=(0, 6))
+
+        self.lbl_tp_coords = tk.Label(
+            tp_top,
+            text=f"TP box: X={tp_box.get('x', 4)} Y={tp_box.get('y', 69)} W={tp_box.get('w', 214)} H={tp_box.get('h', 14)}",
+            font=("Consolas", 9, "bold"),
+            bg="#222428",
+            fg="#e1e2e6"
+        )
+        self.lbl_tp_coords.pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Button(
+            tp_top,
+            text="🎯 Calibrate MP Box",
+            font=("Segoe UI", 9, "bold"),
+            bg="#1f6feb",
+            fg="#ffffff",
+            activebackground="#388bfd",
+            relief="flat",
+            padx=12,
+            pady=3,
+            command=self.calibrate_tp_box
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            tp_top,
+            text="🔍 Auto Detect dari Layar",
+            font=("Segoe UI", 9),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=3,
+            command=self.auto_detect_pot_bars
+        ).pack(side=tk.RIGHT, padx=(0, 6))
+
+        # TP Trigger controls
+        tp_ctrl = tk.Frame(tp_frame, bg="#222428")
+        tp_ctrl.pack(fill=tk.X, pady=4)
+
+        self.var_tp_enabled = tk.BooleanVar(value=tp_cfg.get("enabled", True))
+        tk.Checkbutton(
+            tp_ctrl,
+            text="Aktifkan TP Auto Pot",
+            variable=self.var_tp_enabled,
+            bg="#222428",
+            fg="#e1e2e6",
+            selectcolor="#161b22",
+            activebackground="#222428",
+            font=("Segoe UI", 9, "bold")
+        ).pack(side=tk.LEFT, padx=(0, 14))
+
+        tk.Label(tp_ctrl, text="TP Trigger Threshold (%):", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.entry_tp_threshold = tk.Entry(tp_ctrl, width=5, bg="#161b22", fg="#58a6ff", insertbackground="#ffffff", font=("Segoe UI", 9, "bold"))
+        self.entry_tp_threshold.insert(0, str(tp_cfg.get("threshold_pct", 50)))
+        self.entry_tp_threshold.pack(side=tk.LEFT, padx=(4, 16))
+
+        tk.Label(tp_ctrl, text="Tombol Hotkey TP:", font=("Segoe UI", 9), bg="#222428", fg="#8b949e").pack(side=tk.LEFT)
+        self.combo_tp_key = ttk.Combobox(tp_ctrl, values=valid_keys, width=5, state="readonly", font=("Segoe UI", 9))
+        current_tp_k = str(tp_cfg.get("key", "f10")).lower()
+        self.combo_tp_key.set(current_tp_k if current_tp_k in valid_keys else "f10")
+        self.combo_tp_key.pack(side=tk.LEFT, padx=(4, 0))
+
+        # TP Status row
+        tp_stat = tk.Frame(tp_frame, bg="#161b22", padx=8, pady=4)
+        tp_stat.pack(fill=tk.X, pady=(6, 0))
+
+        self.lbl_tp_status = tk.Label(tp_stat, text="TP: Belum dibaca", font=("Segoe UI", 9, "bold"), bg="#161b22", fg="#8b949e")
+        self.lbl_tp_status.pack(side=tk.LEFT)
+
+        self.lbl_tp_count = tk.Label(tp_stat, text="Total Pot Diminum: 0", font=("Segoe UI", 9), bg="#161b22", fg="#c9d1d9")
+        self.lbl_tp_count.pack(side=tk.RIGHT)
+
+        # 4. Manual Coordinate Fine-Tuning Box
+        manual_frame = tk.LabelFrame(container, text=" 🛠️ Penyesuaian Manual Koordinat Bar (Fine-Tuning) ", bg="#222428", fg="#8b949e", font=("Segoe UI", 9, "bold"), padx=12, pady=10)
+        manual_frame.pack(fill=tk.X, pady=6)
+
+        m_desc = tk.Label(manual_frame, text="Masukkan angka X, Y, W, H langsung jika ingin mengatur pergeseran per-pixel:", font=("Segoe UI", 8), bg="#222428", fg="#8b949e")
+        m_desc.pack(anchor=tk.W, pady=(0, 6))
+
+        # HP manual entries
+        hp_m_row = tk.Frame(manual_frame, bg="#222428")
+        hp_m_row.pack(fill=tk.X, pady=2)
+        tk.Label(hp_m_row, text="HP Box:", font=("Segoe UI", 8, "bold"), bg="#222428", fg="#f85149", width=8, anchor=tk.W).pack(side=tk.LEFT)
+        self.e_hp_x = self._make_coord_entry(hp_m_row, "X:", hp_box.get("x", 4))
+        self.e_hp_y = self._make_coord_entry(hp_m_row, "Y:", hp_box.get("y", 54))
+        self.e_hp_w = self._make_coord_entry(hp_m_row, "W:", hp_box.get("w", 214))
+        self.e_hp_h = self._make_coord_entry(hp_m_row, "H:", hp_box.get("h", 14))
+
+        # TP manual entries
+        tp_m_row = tk.Frame(manual_frame, bg="#222428")
+        tp_m_row.pack(fill=tk.X, pady=2)
+        tk.Label(tp_m_row, text="TP Box:", font=("Segoe UI", 8, "bold"), bg="#222428", fg="#58a6ff", width=8, anchor=tk.W).pack(side=tk.LEFT)
+        self.e_tp_x = self._make_coord_entry(tp_m_row, "X:", tp_box.get("x", 4))
+        self.e_tp_y = self._make_coord_entry(tp_m_row, "Y:", tp_box.get("y", 69))
+        self.e_tp_w = self._make_coord_entry(tp_m_row, "W:", tp_box.get("w", 214))
+        self.e_tp_h = self._make_coord_entry(tp_m_row, "H:", tp_box.get("h", 14))
+
+        tk.Button(
+            manual_frame,
+            text="📐 Terapkan Koordinat Manual",
+            font=("Segoe UI", 8),
+            bg="#30363d",
+            fg="#c9d1d9",
+            relief="flat",
+            padx=10,
+            pady=3,
+            command=self._save_manual_coords
+        ).pack(anchor=tk.W, pady=(6, 0))
+
+        # Start periodic update for Pot tab
+        self.after(300, self._update_pot_status)
+
+    def _save_pot_settings(self, silent: bool = False):
+        try:
+            cooldown = max(0.2, float(self.entry_pot_cooldown.get().strip()))
+            interval = max(0.05, float(self.entry_pot_interval.get().strip()))
+            hp_thresh = max(1.0, min(99.0, float(self.entry_hp_threshold.get().strip())))
+            tp_thresh = max(1.0, min(99.0, float(self.entry_tp_threshold.get().strip())))
+
+            hp_k = self.combo_hp_key.get().strip().lower() or "f9"
+            tp_k = self.combo_tp_key.get().strip().lower() or "f10"
+
+            if "auto_pot" not in self.config.data:
+                self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
+
+            self.config.data["auto_pot"]["enabled"] = self.var_pot_enabled.get()
+            self.config.data["auto_pot"]["sync_with_auto_hunt"] = self.var_pot_sync_hunt.get()
+            self.config.data["auto_pot"]["check_interval_sec"] = interval
+
+            if "hp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["hp"] = dict(DEFAULT_POT_CONFIG["hp"])
+            self.config.data["auto_pot"]["hp"]["enabled"] = self.var_hp_enabled.get()
+            self.config.data["auto_pot"]["hp"]["threshold_pct"] = hp_thresh
+            self.config.data["auto_pot"]["hp"]["key"] = hp_k
+            self.config.data["auto_pot"]["hp"]["cooldown_sec"] = cooldown
+
+            if "tp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["tp"] = dict(DEFAULT_POT_CONFIG["tp"])
+            self.config.data["auto_pot"]["tp"]["enabled"] = self.var_tp_enabled.get()
+            self.config.data["auto_pot"]["tp"]["threshold_pct"] = tp_thresh
+            self.config.data["auto_pot"]["tp"]["key"] = tp_k
+            self.config.data["auto_pot"]["tp"]["cooldown_sec"] = cooldown
+
+            self.config.save()
+            if not silent:
+                self.append_log("Pengaturan Auto Pot berhasil disimpan.")
+                messagebox.showinfo("Sukses", "Pengaturan Auto Pot berhasil disimpan ke konfigurasi!")
+        except Exception as e:
+            if not silent:
+                messagebox.showerror("Error", f"Gagal menyimpan pengaturan Auto Pot: {e}")
+
+    def _toggle_pot_standalone(self):
+        if self.bot.pots.is_running:
+            self.bot.pots.stop()
+            self.append_log("🧪 [Auto Pot] Mode Standalone dihentikan.")
+        else:
+            self._save_pot_settings(silent=True)
+            self.bot.pots.reset_counts()
+            self.bot.pots.start()
+            self.append_log("🧪 [Auto Pot] Mode Standalone dimulai.")
+
+    def test_pot_reading(self, show_dialog: bool = True):
+        try:
+            self.wm.activate_window()
+            time.sleep(0.2)
+            client_img = self.screen.capture_client()
+            hp_pct, tp_pct = self.bot.pots.get_current_readings(client_img)
+
+            hp_str = f"{hp_pct:.1f}%" if hp_pct is not None else "Gagal dibaca"
+            tp_str = f"{tp_pct:.1f}%" if tp_pct is not None else "Gagal dibaca"
+
+            self.append_log(f"🧪 [Auto Pot Reading] HP: {hp_str} | TP: {tp_str}")
+            self._update_pot_labels_with_values(hp_pct, tp_pct)
+
+            if show_dialog:
+                messagebox.showinfo(
+                    "Hasil Pembacaan HP & TP",
+                    f"Pembacaan Bar Karakter Saat Ini:\n\n"
+                    f"❤️ HP Karakter : {hp_str}\n"
+                    f"💙 TP Karakter : {tp_str}\n\n"
+                    f"Pastikan jendela game terlihat jelas dan kotak HP/TP sudah dikalibrasi dengan benar."
+                )
+        except Exception as e:
+            self.append_log(f"🧪 [Auto Pot Reading Error]: {e}")
+            if show_dialog:
+                messagebox.showerror("Error", f"Gagal membaca layar game: {e}")
+
+    def calibrate_hp_box(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(1, x2 - x1)
+            h = max(1, y2 - y1)
+            if "auto_pot" not in self.config.data:
+                self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
+            if "hp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["hp"] = dict(DEFAULT_POT_CONFIG["hp"])
+            self.config.data["auto_pot"]["hp"]["box"] = {"x": x1, "y": y1, "w": w, "h": h}
+            self.config.save()
+            self._sync_pot_ui_from_config()
+            self.append_log(f"🧪 [Auto Pot] Kotak HP berhasil dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            messagebox.showinfo("Kalibrasi Berhasil", f"Area HP Bar berhasil disimpan:\nX={x1}, Y={y1}, W={w}, H={h}")
+
+        AreaSelectorWindow(self, "Pilih Kotak HP Bar (Drag dari Kiri-Atas ke Kanan-Bawah)", 1, 1, client_img, on_saved)
+
+    def calibrate_tp_box(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+
+        def on_saved(rect):
+            x1, y1, x2, y2 = rect
+            w = max(1, x2 - x1)
+            h = max(1, y2 - y1)
+            if "auto_pot" not in self.config.data:
+                self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
+            if "tp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["tp"] = dict(DEFAULT_POT_CONFIG["tp"])
+            self.config.data["auto_pot"]["tp"]["box"] = {"x": x1, "y": y1, "w": w, "h": h}
+            self.config.save()
+            self._sync_pot_ui_from_config()
+            self.append_log(f"🧪 [Auto Pot] Kotak TP berhasil dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            messagebox.showinfo("Kalibrasi Berhasil", f"Area TP Bar berhasil disimpan:\nX={x1}, Y={y1}, W={w}, H={h}")
+
+        AreaSelectorWindow(self, "Pilih Kotak TP Bar (Drag dari Kiri-Atas ke Kanan-Bawah)", 1, 1, client_img, on_saved)
+
+    def auto_detect_pot_bars(self):
+        self.wm.activate_window()
+        time.sleep(0.3)
+        client_img = self.screen.capture_client()
+        hp_box, tp_box = PotController.auto_detect_hud_bars(client_img)
+        if not hp_box and not tp_box:
+            messagebox.showwarning("Auto Detect Gagal", "Tidak dapat mendeteksi bar HP/TP secara otomatis.\nPastikan game berada di layar dan tidak tertutup window lain, atau gunakan tombol Calibrate manual.")
+            return
+
+        msg = "Hasil Deteksi Otomatis Bar Karakter:\n\n"
+        if "auto_pot" not in self.config.data:
+            self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
+
+        if hp_box:
+            if "hp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["hp"] = dict(DEFAULT_POT_CONFIG["hp"])
+            self.config.data["auto_pot"]["hp"]["box"] = hp_box
+            msg += f"❤️ HP Box: X={hp_box['x']}, Y={hp_box['y']}, W={hp_box['w']}, H={hp_box['h']}\n"
+
+        if tp_box:
+            if "tp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["tp"] = dict(DEFAULT_POT_CONFIG["tp"])
+            self.config.data["auto_pot"]["tp"]["box"] = tp_box
+            msg += f"💙 TP Box: X={tp_box['x']}, Y={tp_box['y']}, W={tp_box['w']}, H={tp_box['h']}\n"
+
+        self.config.save()
+        self._sync_pot_ui_from_config()
+        self.append_log("🧪 [Auto Pot] Deteksi otomatis berhasil memperbarui koordinat HP/TP.")
+        messagebox.showinfo("Auto Detect Berhasil", msg + "\nKoordinat telah otomatis disimpan ke konfigurasi!")
+
+    def _save_manual_coords(self):
+        try:
+            hx = int(self.e_hp_x.get().strip())
+            hy = int(self.e_hp_y.get().strip())
+            hw = max(1, int(self.e_hp_w.get().strip()))
+            hh = max(1, int(self.e_hp_h.get().strip()))
+
+            tx = int(self.e_tp_x.get().strip())
+            ty = int(self.e_tp_y.get().strip())
+            tw = max(1, int(self.e_tp_w.get().strip()))
+            th = max(1, int(self.e_tp_h.get().strip()))
+
+            if "auto_pot" not in self.config.data:
+                self.config.data["auto_pot"] = dict(DEFAULT_POT_CONFIG)
+            if "hp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["hp"] = dict(DEFAULT_POT_CONFIG["hp"])
+            if "tp" not in self.config.data["auto_pot"]:
+                self.config.data["auto_pot"]["tp"] = dict(DEFAULT_POT_CONFIG["tp"])
+
+            self.config.data["auto_pot"]["hp"]["box"] = {"x": hx, "y": hy, "w": hw, "h": hh}
+            self.config.data["auto_pot"]["tp"]["box"] = {"x": tx, "y": ty, "w": tw, "h": th}
+            self.config.save()
+            self._sync_pot_ui_from_config()
+            self.append_log(f"🧪 [Auto Pot] Koordinat manual diterapkan: HP=({hx},{hy},{hw},{hh}), TP=({tx},{ty},{tw},{th}).")
+            messagebox.showinfo("Sukses", "Koordinat manual HP & TP berhasil disimpan ke config!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal menerapkan koordinat manual: {e}")
+
+    def _sync_pot_ui_from_config(self):
+        pot_cfg = self.config.get("auto_pot", DEFAULT_POT_CONFIG)
+        hp_box = pot_cfg.get("hp", {}).get("box", {"x": 4, "y": 54, "w": 214, "h": 14})
+        tp_box = pot_cfg.get("tp", {}).get("box", {"x": 4, "y": 69, "w": 214, "h": 14})
+
+        self.lbl_hp_coords.config(text=f"HP box: X={hp_box.get('x', 4)} Y={hp_box.get('y', 54)} W={hp_box.get('w', 214)} H={hp_box.get('h', 14)}")
+        self.lbl_tp_coords.config(text=f"TP box: X={tp_box.get('x', 4)} Y={tp_box.get('y', 69)} W={tp_box.get('w', 214)} H={tp_box.get('h', 14)}")
+
+        for entry, val in [(self.e_hp_x, hp_box.get("x", 4)), (self.e_hp_y, hp_box.get("y", 54)),
+                           (self.e_hp_w, hp_box.get("w", 214)), (self.e_hp_h, hp_box.get("h", 14)),
+                           (self.e_tp_x, tp_box.get("x", 4)), (self.e_tp_y, tp_box.get("y", 69)),
+                           (self.e_tp_w, tp_box.get("w", 214)), (self.e_tp_h, tp_box.get("h", 14))]:
+            entry.delete(0, tk.END)
+            entry.insert(0, str(val))
+
+    def _update_pot_labels_with_values(self, hp_pct: Optional[float], tp_pct: Optional[float]):
+        try:
+            hp_thresh = float(self.entry_hp_threshold.get().strip() or "50")
+        except ValueError:
+            hp_thresh = 50.0
+
+        try:
+            tp_thresh = float(self.entry_tp_threshold.get().strip() or "50")
+        except ValueError:
+            tp_thresh = 50.0
+
+        if hp_pct is not None:
+            if hp_pct <= hp_thresh:
+                color = "#f85149"
+                tag = "[MINUM POT]"
+            elif hp_pct <= 75.0:
+                color = "#e3b341"
+                tag = "[Waspada]"
+            else:
+                color = "#7ee787"
+                tag = "[Aman]"
+            self.lbl_hp_status.config(text=f"❤️ HP Saat Ini: {hp_pct:.1f}% {tag}", fg=color)
+        else:
+            self.lbl_hp_status.config(text="❤️ HP: Tidak terbaca", fg="#8b949e")
+
+        if tp_pct is not None:
+            if tp_pct <= tp_thresh:
+                color = "#f85149"
+                tag = "[MINUM POT]"
+            elif tp_pct <= 75.0:
+                color = "#e3b341"
+                tag = "[Waspada]"
+            else:
+                color = "#58a6ff"
+                tag = "[Aman]"
+            self.lbl_tp_status.config(text=f"💙 TP Saat Ini: {tp_pct:.1f}% {tag}", fg=color)
+        else:
+            self.lbl_tp_status.config(text="💙 TP: Tidak terbaca", fg="#8b949e")
+
+    def _update_pot_status(self):
+        try:
+            is_running = self.bot.pots.is_running
+            hp_cnt = self.bot.pots.hp_pot_count
+            tp_cnt = self.bot.pots.tp_pot_count
+            hp_pct = self.bot.pots.current_hp_pct
+            tp_pct = self.bot.pots.current_tp_pct
+
+            if is_running:
+                self.btn_pot_toggle.config(text="⏹️ Hentikan Auto Pot", bg="#da3633", fg="#ffffff")
+                self.lbl_pot_running_status.config(text="● AUTO POT AKTIF", fg="#7ee787")
+            else:
+                self.btn_pot_toggle.config(text="▶️ Mulai Auto Pot (Standalone)", bg="#1f6feb", fg="#ffffff")
+                self.lbl_pot_running_status.config(text="○ NONAKTIF", fg="#8b949e")
+
+            self.lbl_hp_count.config(text=f"Total Diminum: {hp_cnt}")
+            self.lbl_tp_count.config(text=f"Total Diminum: {tp_cnt}")
+
+            if is_running and hp_pct is not None and tp_pct is not None:
+                self._update_pot_labels_with_values(hp_pct, tp_pct)
+        except Exception:
+            pass
+        self.after(300, self._update_pot_status)
+
+    # =========================================================================
+    # TAB 9: Settings
     # =========================================================================
     def _build_settings_tab(self):
         _, scroll_inner = self._create_scrollable_container(self.tab_settings)
@@ -2518,6 +3085,11 @@ class FarmerGUI(tk.Tk):
                 if loop_hk:
                     keyboard.add_hotkey(loop_hk, lambda: self.after(0, self.run_specific_task, "auto_storage_merchant_loop"))
 
+                try:
+                    keyboard.add_hotkey("shift+end", lambda: self.after(0, self.test_pot_reading, False))
+                except Exception:
+                    pass
+
                 if verbose:
                     self.append_log(
                         f"Global Hotkeys aktif: {start_hk.upper()} (Start), {stop_hk.upper()} (Stop), {loop_hk.upper()} (Auto Loop), "
@@ -2770,6 +3342,24 @@ class FarmerGUI(tk.Tk):
                             time.sleep(0.2)
                     finally:
                         self.bot.skills.stop()
+                        self.bot.is_running = False
+                elif mode == "auto_pot_standalone":
+                    self.bot.is_running = True
+                    self.bot.pots.start()
+                    try:
+                        last_death_check = 0.0
+                        while self.bot.is_running:
+                            now = time.time()
+                            if now - last_death_check >= 1.5:
+                                last_death_check = now
+                                client_img = self.screen.capture_client()
+                                if self.matcher.detect_death_popup(client_img):
+                                    self.append_log("🚨 [SAFETY STOP] Karakter mati terdeteksi! Menghentikan Auto Pot.")
+                                    self._on_character_death()
+                                    break
+                            time.sleep(0.2)
+                    finally:
+                        self.bot.pots.stop()
                         self.bot.is_running = False
                 elif mode == "inv_to_storage":
                     self.bot.run_inventory_to_storage()
