@@ -2229,12 +2229,12 @@ class FarmerGUI(tk.Tk):
         bar = self.config.get("auto_skill", {}).get("quickslot_bar", {})
         if bar and "x" in bar:
             self.lbl_quickslot_bar_info.config(
-                text=f"Bar 10 Slot: X={bar.get('x')} Y={bar.get('y')} W={bar.get('w')} H={bar.get('h')}",
+                text=f"Bar 2x10 Slot: X={bar.get('x')} Y={bar.get('y')} W={bar.get('w')} H={bar.get('h')}",
                 fg="#3fb950"
             )
         else:
             self.lbl_quickslot_bar_info.config(
-                text="Bar 10 Slot: Belum Dikalibrasi",
+                text="Bar 2x10 Slot: Belum Dikalibrasi",
                 fg="#f85149"
             )
 
@@ -2242,12 +2242,21 @@ class FarmerGUI(tk.Tk):
         self._apply_skill_gui_to_config(save_to_disk=False)
         combo_list = self.config.data.setdefault("auto_skill", {}).setdefault("combo_list", [])
         new_idx = len(combo_list) + 1
-        default_slot = min(10, new_idx)
+        if new_idx <= 10:
+            num_k = new_idx if new_idx < 10 else 0
+            default_slot_str = f"Atas: Slot {new_idx} ({num_k})"
+            default_hk = str(num_k)
+        else:
+            f_num = min(10, new_idx - 10)
+            default_slot_str = f"Bawah: Slot F{f_num}"
+            default_hk = f"f{f_num}"
+
         combo_list.append({
             "id": f"skill_{int(time.time() * 1000)}",
             "name": f"Skill {new_idx}",
-            "hotkey": str(default_slot if default_slot < 10 else 0),
-            "slot_index": default_slot,
+            "hotkey": default_hk,
+            "slot_str": default_slot_str,
+            "slot_index": new_idx,
             "slot_box": None,
             "template_path": "",
             "similarity_threshold": 0.75,
@@ -2295,7 +2304,29 @@ class FarmerGUI(tk.Tk):
 
         hotkey_options = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "e", "r", "f",
                           "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"]
-        slot_options = [f"Slot {i}" for i in range(1, 11)] + ["Custom Area"]
+        slot_options = [
+            "Atas: Slot 1 (1)",
+            "Atas: Slot 2 (2)",
+            "Atas: Slot 3 (3)",
+            "Atas: Slot 4 (4)",
+            "Atas: Slot 5 (5)",
+            "Atas: Slot 6 (6)",
+            "Atas: Slot 7 (7)",
+            "Atas: Slot 8 (8)",
+            "Atas: Slot 9 (9)",
+            "Atas: Slot 10 (0)",
+            "Bawah: Slot F1",
+            "Bawah: Slot F2",
+            "Bawah: Slot F3",
+            "Bawah: Slot F4",
+            "Bawah: Slot F5",
+            "Bawah: Slot F6",
+            "Bawah: Slot F7",
+            "Bawah: Slot F8",
+            "Bawah: Slot F9",
+            "Bawah: Slot F10",
+            "Custom Area"
+        ]
 
         for idx, item in enumerate(combo_list):
             card = tk.LabelFrame(
@@ -2333,16 +2364,42 @@ class FarmerGUI(tk.Tk):
             tk.Entry(r1, textvariable=var_name, width=10, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(2, 8))
 
             tk.Label(r1, text="Slot:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
-            cur_slot = item.get("slot_index", 1)
-            init_slot_str = f"Slot {cur_slot}" if (1 <= cur_slot <= 10) else "Custom Area"
+            init_slot_str = item.get("slot_str")
+            if not init_slot_str or init_slot_str not in slot_options:
+                cur_slot = item.get("slot_index", 1)
+                cur_hk = str(item.get("hotkey", "")).lower()
+                if cur_hk.startswith("f"):
+                    init_slot_str = f"Bawah: Slot {cur_hk.upper()}"
+                elif 1 <= cur_slot <= 10:
+                    num_k = cur_slot if cur_slot < 10 else 0
+                    init_slot_str = f"Atas: Slot {cur_slot} ({num_k})"
+                else:
+                    init_slot_str = "Custom Area"
+                if init_slot_str not in slot_options:
+                    init_slot_str = "Custom Area"
+
             var_slot = tk.StringVar(value=init_slot_str)
-            cb_slot = ttk.Combobox(r1, textvariable=var_slot, values=slot_options, width=11, state="readonly", font=("Segoe UI", 8))
+            cb_slot = ttk.Combobox(r1, textvariable=var_slot, values=slot_options, width=17, state="readonly", font=("Segoe UI", 8))
             cb_slot.pack(side=tk.LEFT, padx=(2, 8))
 
             tk.Label(r1, text="Hotkey:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
             var_hotkey = tk.StringVar(value=str(item.get("hotkey", "1")).lower())
             cb_hotkey = ttk.Combobox(r1, textvariable=var_hotkey, values=hotkey_options, width=5, state="readonly", font=("Segoe UI", 8))
             cb_hotkey.pack(side=tk.LEFT, padx=(2, 8))
+
+            def _on_slot_change(event, vs=var_slot, vh=var_hotkey):
+                val = vs.get()
+                if val.startswith("Atas: Slot "):
+                    import re
+                    m = re.search(r"\((\d+)\)", val)
+                    if m:
+                        vh.set(m.group(1))
+                elif val.startswith("Bawah: Slot "):
+                    import re
+                    m = re.search(r"(F\d+)", val, re.IGNORECASE)
+                    if m:
+                        vh.set(m.group(1).lower())
+            cb_slot.bind("<<ComboboxSelected>>", _on_slot_change)
 
             tk.Label(r1, text="Cast Delay (s):", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT)
             var_delay = tk.StringVar(value=str(item.get("cast_delay_sec", 0.30)))
@@ -2461,18 +2518,20 @@ class FarmerGUI(tk.Tk):
             if "auto_skill" not in self.config.data:
                 self.config.data["auto_skill"] = dict(DEFAULT_SKILL_CONFIG)
             self.config.data["auto_skill"]["quickslot_bar"] = {
-                "x": x1, "y": y1, "w": w, "h": h, "cols": 10, "rows": 1
+                "x": x1, "y": y1, "w": w, "h": h, "cols": 10, "rows": 2
             }
             self.config.save()
             self._update_quickslot_bar_label()
-            self.append_log(f"⚡ [Auto Skill] Bar Quickslot (10 Slot) dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
+            self.append_log(f"⚡ [Auto Skill] Bar Quickslot (2 Baris x 10 Kolom) dikalibrasi: X={x1}, Y={y1}, W={w}, H={h}.")
             messagebox.showinfo(
                 "Kalibrasi Berhasil",
-                f"Bar Quickslot 10 Slot berhasil disimpan!\nKoordinat: X={x1}, Y={y1}, W={w}, H={h}\n\n"
-                f"Setiap slot 1..10 sekarang otomatis terpetakan merata."
+                f"Bar Quickslot (2 Baris x 10 Slot) berhasil disimpan!\nKoordinat: X={x1}, Y={y1}, W={w}, H={h}\n\n"
+                f"• Baris Atas: Tombol 1 s/d 0 (10 slot)\n"
+                f"• Baris Bawah: Tombol F1 s/d F10 (10 slot)\n\n"
+                f"Setiap slot sekarang otomatis terpotong 1 grid (hanya barisnya masing-masing)."
             )
 
-        AreaSelectorWindow(self, "Pilih Bar Quickslot (10 Slot dari Slot 1 s/d Slot 10)", 10, 1, client_img, on_saved)
+        AreaSelectorWindow(self, "Pilih Seluruh Bar Quickslot (2 Baris x 10 Kolom: Atas 1-0, Bawah F1-F10)", 10, 2, client_img, on_saved)
 
     def calibrate_single_skill_slot(self, idx: int):
         self._apply_skill_gui_to_config(save_to_disk=False)
@@ -2634,13 +2693,9 @@ class FarmerGUI(tk.Tk):
             combo_list = []
             for item_vars in self._combo_row_vars:
                 slot_str = item_vars["slot_str"].get()
-                if slot_str.startswith("Slot "):
-                    try:
-                        slot_idx = int(slot_str.replace("Slot ", "").strip())
-                    except ValueError:
-                        slot_idx = 1
-                else:
-                    slot_idx = 0
+                import re
+                m = re.search(r"\d+", slot_str)
+                slot_idx = int(m.group(0)) if m else 1
 
                 try:
                     delay_val = max(0.05, float(item_vars["delay"].get().strip()))
@@ -2651,6 +2706,7 @@ class FarmerGUI(tk.Tk):
                     "id": item_vars["id"],
                     "enabled": item_vars["enabled"].get(),
                     "name": item_vars["name"].get().strip(),
+                    "slot_str": slot_str,
                     "slot_index": slot_idx,
                     "hotkey": item_vars["hotkey"].get().strip().lower(),
                     "cast_delay_sec": delay_val,

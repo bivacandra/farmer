@@ -11,6 +11,7 @@ Supports:
 Thread-safe execution compatible with Auto Hunt and standalone modes.
 """
 
+import re
 import threading
 import time
 from pathlib import Path
@@ -23,6 +24,7 @@ DEFAULT_SKILL_CONFIG: Dict[str, Any] = {
     "sync_with_auto_hunt": True,
     "mode": "smart_combo",  # "smart_combo" (visual cooldown) or "timer_interval" (legacy)
     "combo_check_interval_sec": 0.05,
+    "quickslot_bar": {"x": 300, "y": 700, "w": 410, "h": 86, "cols": 10, "rows": 2},
     "combo_list": [],
     "keys": {
         "1": {"enabled": False, "interval": 10.0},
@@ -50,6 +52,51 @@ DEFAULT_SKILL_CONFIG: Dict[str, Any] = {
         "f10": {"enabled": False, "interval": 10.0},
     }
 }
+
+
+def parse_slot_info(slot_str: str, hotkey_hint: str = "") -> Tuple[int, int]:
+    """
+    Parses slot descriptor into (row, col) for 2x10 quickslot bar:
+    - row 0: Baris Atas (Number keys: 1, 2, 3, 4, 5, 6, 7, 8, 9, 0)
+    - row 1: Baris Bawah (Function keys: F1, F2, F3, F4, F5, F6, F7, F8, F9, F10)
+    - col: 0..9
+    """
+    s = str(slot_str).lower().strip()
+    h = str(hotkey_hint).lower().strip()
+
+    # Bawah / Function keys (F1 - F10)
+    if "bawah" in s or "f" in s or h.startswith("f"):
+        row = 1
+        m = re.search(r"f(\d+)", s) or re.search(r"f(\d+)", h)
+        if m:
+            num = int(m.group(1))
+            col = max(0, min(9, num - 1))
+            return row, col
+        m = re.search(r"(\d+)", s)
+        if m:
+            num = int(m.group(1))
+            col = max(0, min(9, num - 1))
+            return row, col
+        return 1, 0
+
+    # Atas / Number keys (1 - 0)
+    row = 0
+    m = re.search(r"(\d+)", s)
+    if m:
+        num = int(m.group(1))
+        if num == 0 or num == 10:
+            col = 9
+        else:
+            col = max(0, min(9, num - 1))
+        return row, col
+
+    # Fallback from hotkey hint
+    if h in ["1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+        return 0, int(h) - 1
+    elif h == "0":
+        return 0, 9
+
+    return 0, 0
 
 
 class SkillController:
@@ -80,6 +127,8 @@ class SkillController:
         self.combo_counts: Dict[str, int] = {}
         self.combo_status: Dict[str, Dict[str, Any]] = {}
         self.last_combo_cast_time: float = 0.0
+        self.last_cast_times: Dict[str, float] = {}
+        self.combo_step_index: int = 0
         self.current_combo_index: int = -1
         self._template_cache: Dict[str, Image.Image] = {}
 
@@ -121,7 +170,8 @@ class SkillController:
         """
         Resolves the slot bounding box for a combo skill item.
         First checks explicit 'slot_box' or 'box'. If not set, derives
-        the box from 'slot_index' (1..10) and 'quickslot_bar' calibration.
+        the box from slot descriptor ('slot_str' / 'slot_index') and 'quickslot_bar' calibration.
+        Row 0 = Baris Atas (1 - 0), Row 1 = Baris Bawah (F1 - F10).
         """
         if not skill_item:
             return None
@@ -135,24 +185,34 @@ class SkillController:
                 "h": int(explicit_box.get("h", 0))
             }
 
-        slot_idx = int(skill_item.get("slot_index", 1))
         quickslot_bar = self.get_skill_cfg().get("quickslot_bar", {})
-        if quickslot_bar and "x" in quickslot_bar and quickslot_bar.get("w", 0) > 0:
-            cols = max(1, int(quickslot_bar.get("cols", 10)))
-            bar_x = int(quickslot_bar["x"])
-            bar_y = int(quickslot_bar["y"])
-            bar_w = int(quickslot_bar["w"])
-            bar_h = int(quickslot_bar["h"])
-            col_w = bar_w / cols
-            col_idx = max(0, min(cols - 1, slot_idx - 1))
-            return {
-                "x": int(bar_x + col_idx * col_w),
-                "y": bar_y,
-                "w": max(1, int(col_w)),
-                "h": bar_h
-            }
+        if not quickslot_bar or "x" not in quickslot_bar or quickslot_bar.get("w", 0) <= 0:
+            return None
 
-        return None
+        slot_str = str(skill_item.get("slot_str") or skill_item.get("slot_index", "") or "")
+        hotkey = str(skill_item.get("hotkey", "")).strip().lower()
+
+        row, col = parse_slot_info(slot_str, hotkey)
+
+        cols = max(1, int(quickslot_bar.get("cols", 10)))
+        rows = max(1, int(quickslot_bar.get("rows", 2)))
+        bar_x = int(quickslot_bar["x"])
+        bar_y = int(quickslot_bar["y"])
+        bar_w = int(quickslot_bar["w"])
+        bar_h = int(quickslot_bar["h"])
+
+        col_w = bar_w / float(cols)
+        row_h = bar_h / float(rows)
+
+        col_idx = max(0, min(cols - 1, col))
+        row_idx = max(0, min(rows - 1, row))
+
+        return {
+            "x": int(bar_x + col_idx * col_w),
+            "y": int(bar_y + row_idx * row_h),
+            "w": max(1, int(col_w)),
+            "h": max(1, int(row_h))
+        }
 
     def get_skill_slot_crop(self, client_img: Image.Image, box_or_item: Any) -> Optional[Image.Image]:
         """
@@ -162,12 +222,28 @@ class SkillController:
         if client_img is None or not box_or_item:
             return None
 
-        if isinstance(box_or_item, dict) and "w" in box_or_item and "h" in box_or_item and "x" in box_or_item and "y" in box_or_item and "slot_index" not in box_or_item:
+        if isinstance(box_or_item, dict) and "w" in box_or_item and "h" in box_or_item and "x" in box_or_item and "y" in box_or_item and "slot_index" not in box_or_item and "slot_str" not in box_or_item and "hotkey" not in box_or_item:
             box = box_or_item
         elif isinstance(box_or_item, dict):
             box = self.get_skill_slot_box(box_or_item)
         else:
             return None
+
+        if not box:
+            return None
+
+        x = int(box.get("x", 0))
+        y = int(box.get("y", 0))
+        w = int(box.get("w", 0))
+        h = int(box.get("h", 0))
+        if w <= 0 or h <= 0:
+            return None
+
+        x2 = min(client_img.width, x + w)
+        y2 = min(client_img.height, y + h)
+        if x2 <= x or y2 <= y:
+            return None
+        return client_img.crop((x, y, x2, y2))
 
         if not box:
             return None
@@ -303,7 +379,10 @@ class SkillController:
                 self.counts[k] = 0
             self.combo_counts.clear()
             self.combo_status.clear()
-        self.log("[Auto Skill] Status & Countdown di-reset.")
+            self.last_cast_times.clear()
+            self.combo_step_index = 0
+            self.current_combo_index = -1
+        self.log("[Auto Skill] Status, Combo Rotasi & Countdown di-reset.")
 
     def start(self):
         with self._lock:
@@ -313,18 +392,21 @@ class SkillController:
             self.input.reset_abort()
             for k in self.last_press_times:
                 self.last_press_times[k] = 0.0
+            self.combo_step_index = 0
+            self.last_cast_times.clear()
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
             cfg = self.get_skill_cfg()
             mode = cfg.get("mode", "smart_combo")
             if mode == "smart_combo":
-                self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Deteksi Visual Cooldown)...")
+                self.log("⚡ [Auto Skill] Berjalan dalam Mode SMART COMBO (Rotasi Sekuensial & Cooldown Awareness)...")
             else:
                 self.log("⚡ [Auto Skill] Berjalan dalam Mode TIMER INTERVAL (Detik)...")
 
     def stop(self):
         with self._lock:
             self.is_running = False
+            self.current_combo_index = -1
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
         self.log("⚡ [Auto Skill] Berhenti.")
@@ -350,8 +432,9 @@ class SkillController:
     def _run_smart_combo_tick(self, cfg: Dict[str, Any]):
         """
         Executes one iteration of Smart Combo:
-        Iterates through combo_list in order. Triggers the first skill that is NOT on cooldown,
-        applies cast delay, then finishes tick. Skips skills that are on cooldown.
+        Evaluates skills sequentially in combo order (1 -> 2 -> 3 -> 4).
+        If a skill is active (not on cooldown), triggers hotkey and advances combo pointer.
+        If a skill is on cooldown, skips it immediately to the next skill in sequence.
         """
         combo_list = cfg.get("combo_list", [])
         if not combo_list or not self.screen:
@@ -365,12 +448,21 @@ class SkillController:
             time.sleep(interval)
             return
 
+        n_skills = len(combo_list)
+        if self.combo_step_index >= n_skills:
+            self.combo_step_index = 0
+
+        now = time.time()
         cast_executed = False
 
-        # Iterate through combo items in sequence
-        for idx, skill_item in enumerate(combo_list):
+        # Evaluate skills in combo sequence starting from current combo_step_index
+        for attempt in range(n_skills):
             if not self.is_running:
                 break
+
+            idx = (self.combo_step_index + attempt) % n_skills
+            skill_item = combo_list[idx]
+
             if not skill_item.get("enabled", True):
                 continue
 
@@ -404,24 +496,46 @@ class SkillController:
                     "name": skill_name
                 }
 
+            cast_delay = max(0.05, float(skill_item.get("cast_delay_sec", 0.30)))
+            last_cast = self.last_cast_times.get(skill_id, 0.0)
+
+            # Per-skill debounce: cannot re-cast same skill within max(0.5s, cast_delay + 0.2s)
+            min_cooldown = max(0.5, cast_delay + 0.2)
+            if (now - last_cast) < min_cooldown:
+                # Still in debounce window, check next skill in sequence
+                continue
+
             if is_active:
                 # Skill is READY to cast!
                 try:
                     self.current_combo_index = idx
-                    self.input.press_key(hotkey)
+
+                    # Ensure game window is focused before sending key
+                    if not self.wm.is_window_active():
+                        self.wm.activate_window()
+                        time.sleep(0.04)
+
+                    # Hold key for 80ms to guarantee DirectX engine registers key press
+                    self.input.hold_key(hotkey, 0.08)
+                    self.last_cast_times[skill_id] = time.time()
+
                     with self._lock:
                         self.combo_counts[skill_id] = self.combo_counts.get(skill_id, 0) + 1
                         total_c = self.combo_counts[skill_id]
-                    cast_delay = max(0.05, float(skill_item.get("cast_delay_sec", 0.30)))
+
                     self.log(
                         f"⚡ [Smart Combo] Eksekusi '{skill_name}' "
                         f"(Sim: {sim:.2f}, Bright: {b_ratio:.2f}) -> Total: {total_c}x. Delay {cast_delay:.2f}s."
                     )
+
+                    # Advance combo pointer to next skill in sequence!
+                    self.combo_step_index = (idx + 1) % n_skills
                     cast_executed = True
                     time.sleep(cast_delay)
-                    break  # Break out to advance the combo and re-evaluate next tick
+                    break  # Skill cast, finish tick
                 except Exception as e:
                     self.log(f"⚡ [Smart Combo] Error eksekusi hotkey {hotkey}: {e}")
+                    break
             else:
                 # Skill is on COOLDOWN -> skip immediately to next skill in sequence!
                 pass

@@ -113,6 +113,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sync_with_auto_hunt": True,
         "mode": "smart_combo",
         "combo_check_interval_sec": 0.05,
+        "quickslot_bar": {"x": 300, "y": 700, "w": 410, "h": 86, "cols": 10, "rows": 2},
         "combo_list": [],
         "keys": {
             "1": {"enabled": False, "interval": 10.0},

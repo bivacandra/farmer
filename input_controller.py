@@ -197,13 +197,19 @@ class InputController:
 
         try:
             if HAS_DIRECT_INPUT:
-                pydirectinput.press(key_lower)
+                pydirectinput.keyDown(key_lower)
+                time.sleep(0.05)
+                pydirectinput.keyUp(key_lower)
             elif HAS_PYAUTOGUI:
-                pyautogui.press(key_lower)
+                pyautogui.keyDown(key_lower)
+                time.sleep(0.05)
+                pyautogui.keyUp(key_lower)
         except Exception:
             if HAS_PYAUTOGUI:
                 try:
-                    pyautogui.press(key_lower)
+                    pyautogui.keyDown(key_lower)
+                    time.sleep(0.05)
+                    pyautogui.keyUp(key_lower)
                 except Exception:
                     pass
         time.sleep(0.04)

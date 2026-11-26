@@ -1,6 +1,6 @@
 {
   "ui": {
-    "compact_mode": true
+    "compact_mode": false
   },
   "window": {
     "title_patterns": [
@@ -99,19 +99,25 @@
     "align_match_threshold": 0.4
   },
   "auto_skill": {
-    "enabled": false,
+    "enabled": true,
     "sync_with_auto_hunt": true,
     "mode": "smart_combo",
-    "combo_check_interval_sec": 0.05,
-    "quickslot_bar": {
-      "x": 300,
-      "y": 700,
-      "w": 380,
-      "h": 38,
-      "cols": 10,
-      "rows": 1
-    },
-    "combo_list": [],
+    "combo_check_interval_sec": 0.5,
+    "combo_list": [
+      {
+        "id": "skill_1795696179858",
+        "enabled": true,
+        "name": "Skill 1",
+        "slot_str": "Atas: Slot 1 (1)",
+        "slot_index": 1,
+        "hotkey": "1",
+        "cast_delay_sec": 0.3,
+        "slot_box": null,
+        "template_path": "",
+        "similarity_threshold": 0.75,
+        "brightness_ratio_threshold": 0.7
+      }
+    ],
     "keys": {
       "1": {
         "enabled": false,
@@ -205,6 +211,14 @@
         "enabled": false,
         "interval": 10.0
       }
+    },
+    "quickslot_bar": {
+      "x": 375,
+      "y": 4,
+      "w": 389,
+      "h": 75,
+      "cols": 10,
+      "rows": 2
     }
   },
   "auto_pot": {

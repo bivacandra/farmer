@@ -5,3 +5,6 @@ __pycache__/
 
 # Root sample screenshots
 /*.png
+
+# User captured skills
+assets/skills/skill_*.png
