@@ -511,7 +511,7 @@ class SkillController:
                     self.current_combo_index = idx
 
                     # Ensure game window is focused before sending key
-                    if not self.wm.is_window_active():
+                    if self.wm and hasattr(self.wm, "is_foreground") and not self.wm.is_foreground():
                         self.wm.activate_window()
                         time.sleep(0.04)
 

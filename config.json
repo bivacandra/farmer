@@ -103,17 +103,38 @@
     "sync_with_auto_hunt": true,
     "mode": "smart_combo",
     "combo_check_interval_sec": 0.5,
+    "quickslot_bar": {
+      "x": 375,
+      "y": 4,
+      "w": 389,
+      "h": 75,
+      "cols": 10,
+      "rows": 2
+    },
     "combo_list": [
       {
-        "id": "skill_1795696179858",
+        "id": "skill_1795696960015",
         "enabled": true,
         "name": "Skill 1",
-        "slot_str": "Atas: Slot 1 (1)",
-        "slot_index": 1,
-        "hotkey": "1",
+        "slot_str": "Atas: Slot 3 (3)",
+        "slot_index": 3,
+        "hotkey": "3",
         "cast_delay_sec": 0.3,
         "slot_box": null,
-        "template_path": "",
+        "template_path": "assets/skills/skill_skill_1795696960015_1795696974.png",
+        "similarity_threshold": 0.75,
+        "brightness_ratio_threshold": 0.7
+      },
+      {
+        "id": "skill_1795696979174",
+        "enabled": true,
+        "name": "Skill 2",
+        "slot_str": "Atas: Slot 4 (4)",
+        "slot_index": 4,
+        "hotkey": "4",
+        "cast_delay_sec": 0.3,
+        "slot_box": null,
+        "template_path": "assets/skills/skill_skill_1795696979174_1795696986.png",
         "similarity_threshold": 0.75,
         "brightness_ratio_threshold": 0.7
       }
@@ -160,7 +181,7 @@
         "interval": 10.0
       },
       "e": {
-        "enabled": false,
+        "enabled": true,
         "interval": 10.0
       },
       "r": {
@@ -211,14 +232,6 @@
         "enabled": false,
         "interval": 10.0
       }
-    },
-    "quickslot_bar": {
-      "x": 375,
-      "y": 4,
-      "w": 389,
-      "h": 75,
-      "cols": 10,
-      "rows": 2
     }
   },
   "auto_pot": {

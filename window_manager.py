@@ -114,6 +114,10 @@ class WindowManager:
         except Exception:
             return False
 
+    def is_window_active(self) -> bool:
+        """Alias for is_foreground()."""
+        return self.is_foreground()
+
     def activate_window(self) -> bool:
         """Brings the game window to foreground."""
         if sys.platform != "win32":
