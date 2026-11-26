@@ -216,6 +216,11 @@ class FarmerGUI(tk.Tk):
         self.bot.log_callback = self.append_log
         self.bot.on_death_callback = self._on_character_death
 
+        # Initialize responsive collections for compact/normal mode
+        self._mode_radiobuttons = []
+        self._responsive_labels = []
+        self._responsive_checkbuttons = []
+
         # Build UI layout
         self._build_header()
         self._build_notebook()
@@ -438,11 +443,25 @@ class FarmerGUI(tk.Tk):
             self.append_log("Tampilan dialihkan ke Mode Normal.")
 
         self._update_tab_titles(is_compact)
+        wrap_val = 450 if is_compact else 840
         if hasattr(self, "_mode_radiobuttons") and self._mode_radiobuttons:
-            wrap_val = 430 if is_compact else 820
             for rb in self._mode_radiobuttons:
                 try:
                     rb.config(wraplength=wrap_val)
+                except Exception:
+                    pass
+
+        if hasattr(self, "_responsive_labels"):
+            for lbl, c_txt, n_txt in self._responsive_labels:
+                try:
+                    lbl.config(text=c_txt if is_compact else n_txt, wraplength=wrap_val)
+                except Exception:
+                    pass
+
+        if hasattr(self, "_responsive_checkbuttons"):
+            for cb, c_txt, n_txt in self._responsive_checkbuttons:
+                try:
+                    cb.config(text=c_txt if is_compact else n_txt, wraplength=wrap_val)
                 except Exception:
                     pass
 
@@ -1035,17 +1054,28 @@ class FarmerGUI(tk.Tk):
         container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
+        wrap_val = 450 if self.is_compact_mode else 840
+        desc_compact = (
+            "Aturan Tas ➔ Gudang:\n"
+            "• 🚫 Blacklist: Item di daftar TIDAK dipindahkan (aman di tas).\n"
+            "• ⚡ Item Lain: Dipindahkan otomatis ke slot kosong gudang."
+        )
+        desc_normal = (
+            "Aturan Pemindahan Tas (Inventory) ke Gudang (Storage):\n"
+            "• 🚫 BLACKLIST GUDANG: Item di daftar ini TIDAK AKAN dipindahkan ke gudang (tetap di tas, misal: Potion, Gear utama).\n"
+            "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan langsung dipindahkan ke slot kosong di gudang."
+        )
         desc = tk.Label(
             container,
-            text="Aturan Pemindahan Tas (Inventory) ke Gudang (Storage):\n"
-                 "• 🚫 BLACKLIST GUDANG: Item di daftar ini TIDAK AKAN dipindahkan ke gudang (tetap di tas, misal: Potion, Pustika, Gear utama).\n"
-                 "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan langsung dipindahkan ke slot kosong di gudang (Storage 120 slot) secara cepat dan aman.",
+            text=desc_compact if self.is_compact_mode else desc_normal,
             font=("Segoe UI", 9),
             bg="#222428",
             fg="#8b949e",
-            justify=tk.LEFT
+            justify=tk.LEFT,
+            wraplength=wrap_val
         )
         desc.pack(anchor=tk.W, pady=(0, 10))
+        self._responsive_labels.append((desc, desc_compact, desc_normal))
 
         # Checkboxes bar
         cfg_bar = tk.Frame(container, bg="#161b22", padx=12, pady=8, relief="ridge", bd=1)
@@ -1054,9 +1084,11 @@ class FarmerGUI(tk.Tk):
         self.var_storage_blacklist_enabled = tk.BooleanVar(
             value=self.config.get("storage_deposit", "blacklist_enabled", True)
         )
+        cb1_compact = "Aktifkan Blacklist Gudang (Jangan simpan item blacklist)"
+        cb1_normal = "Aktifkan Blacklist Gudang (Jangan pindahkan item yang cocok dengan Ikon Blacklist)"
         cb1 = tk.Checkbutton(
             cfg_bar,
-            text="Aktifkan Blacklist Gudang (Jangan pindahkan item yang cocok dengan Ikon Blacklist)",
+            text=cb1_compact if self.is_compact_mode else cb1_normal,
             variable=self.var_storage_blacklist_enabled,
             bg="#161b22",
             fg="#e1e2e6",
@@ -1064,14 +1096,18 @@ class FarmerGUI(tk.Tk):
             activebackground="#161b22",
             activeforeground="#58a6ff",
             font=("Segoe UI", 9, "bold"),
-            command=self._on_toggle_storage_blacklist
+            command=self._on_toggle_storage_blacklist,
+            wraplength=wrap_val,
+            justify=tk.LEFT,
+            anchor=tk.W
         )
-        cb1.pack(anchor=tk.W)
+        cb1.pack(anchor=tk.W, fill=tk.X)
+        self._responsive_checkbuttons.append((cb1, cb1_compact, cb1_normal))
 
         # Filter Pop-up Penutup Storage Box (Issue #6)
         self.box_popup_frame = tk.LabelFrame(
             container,
-            text=" 🛡️ Filter Pop-up Penutup Storage (Notice / Lucky Number / Raffle / Quiz) ",
+            text=" 🛡️ Filter Pop-up Penutup Storage ",
             bg="#222428",
             fg="#d29922",
             font=("Segoe UI", 10, "bold"),
@@ -1081,9 +1117,11 @@ class FarmerGUI(tk.Tk):
         self.box_popup_frame.pack(fill=tk.X, pady=(0, 12))
 
         self.var_auto_dismiss_popup = tk.BooleanVar(value=self.config.get("storage_popup", "auto_dismiss", True))
+        cb2_compact = "🛡️ Tutup otomatis popup yang terdeteksi sebelum proses Storage"
+        cb2_normal = "🛡️ Tutup Otomatis Popup yang terdeteksi sebelum proses Storage (Klik judul popup -> Esc 1x)"
         cb2 = tk.Checkbutton(
             self.box_popup_frame,
-            text="🛡️ Tutup Otomatis Popup yang terdeteksi sebelum proses Storage (Klik judul popup -> Esc 1x)",
+            text=cb2_compact if self.is_compact_mode else cb2_normal,
             variable=self.var_auto_dismiss_popup,
             bg="#222428",
             fg="#e1e2e6",
@@ -1091,9 +1129,13 @@ class FarmerGUI(tk.Tk):
             activebackground="#222428",
             activeforeground="#58a6ff",
             font=("Segoe UI", 9),
-            command=self._on_toggle_auto_dismiss_popup
+            command=self._on_toggle_auto_dismiss_popup,
+            wraplength=wrap_val,
+            justify=tk.LEFT,
+            anchor=tk.W
         )
-        cb2.pack(anchor=tk.W, pady=(0, 6))
+        cb2.pack(anchor=tk.W, fill=tk.X, pady=(0, 6))
+        self._responsive_checkbuttons.append((cb2, cb2_compact, cb2_normal))
 
         pop_btn_bar = tk.Frame(self.box_popup_frame, bg="#222428")
         pop_btn_bar.pack(fill=tk.X, pady=(0, 6))
@@ -1399,17 +1441,28 @@ class FarmerGUI(tk.Tk):
         container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
+        wrap_val = 450 if self.is_compact_mode else 840
+        desc_compact = (
+            "Aturan Gudang ➔ Tas:\n"
+            "• 🚫 Blacklist: Item di daftar TIDAK ditarik (tetap di gudang).\n"
+            "• ⚡ Item Lain: Ditarik ke tas sampai penuh untuk dijual ke NPC."
+        )
+        desc_normal = (
+            "Aturan Penarikan Gudang (Storage) ke Tas (Inventory):\n"
+            "• 🚫 BLACKLIST TARIK GUDANG: Item di daftar ini TIDAK AKAN ditarik ke tas (tetap aman di gudang, misal: Ore, Potion cadangan, Equip simpanan).\n"
+            "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan ditarik ke slot tas kosong sampai tas penuh untuk dijual ke pedagang."
+        )
         desc = tk.Label(
             container,
-            text="Aturan Penarikan Gudang (Storage) ke Tas (Inventory):\n"
-                 "• 🚫 BLACKLIST TARIK GUDANG: Item di daftar ini TIDAK AKAN ditarik ke tas (tetap aman di gudang, misal: Ore, Potion cadangan, Equip simpanan).\n"
-                 "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan ditarik ke slot tas kosong sampai tas penuh untuk dijual ke pedagang.",
+            text=desc_compact if self.is_compact_mode else desc_normal,
             font=("Segoe UI", 9),
             bg="#222428",
             fg="#8b949e",
-            justify=tk.LEFT
+            justify=tk.LEFT,
+            wraplength=wrap_val
         )
         desc.pack(anchor=tk.W, pady=(0, 10))
+        self._responsive_labels.append((desc, desc_compact, desc_normal))
 
         # Checkboxes bar
         cfg_bar = tk.Frame(container, bg="#161b22", padx=12, pady=8, relief="ridge", bd=1)
@@ -1418,9 +1471,11 @@ class FarmerGUI(tk.Tk):
         self.var_storage_withdraw_blacklist_enabled = tk.BooleanVar(
             value=self.config.get("storage_withdraw", "blacklist_enabled", True)
         )
+        cb1_compact = "Aktifkan Blacklist Tarik (Jangan tarik item blacklist)"
+        cb1_normal = "Aktifkan Blacklist Tarik Gudang (Jangan tarik item yang cocok dengan Ikon Blacklist)"
         cb1 = tk.Checkbutton(
             cfg_bar,
-            text="Aktifkan Blacklist Tarik Gudang (Jangan tarik item yang cocok dengan Ikon Blacklist)",
+            text=cb1_compact if self.is_compact_mode else cb1_normal,
             variable=self.var_storage_withdraw_blacklist_enabled,
             bg="#161b22",
             fg="#e1e2e6",
@@ -1428,9 +1483,13 @@ class FarmerGUI(tk.Tk):
             activebackground="#161b22",
             activeforeground="#58a6ff",
             font=("Segoe UI", 9, "bold"),
-            command=self._on_toggle_storage_withdraw_blacklist
+            command=self._on_toggle_storage_withdraw_blacklist,
+            wraplength=wrap_val,
+            justify=tk.LEFT,
+            anchor=tk.W
         )
-        cb1.pack(anchor=tk.W)
+        cb1.pack(anchor=tk.W, fill=tk.X)
+        self._responsive_checkbuttons.append((cb1, cb1_compact, cb1_normal))
 
         # Blacklist Tarik Gudang Box
         self.box_storage_withdraw_frame = tk.LabelFrame(
@@ -1585,20 +1644,32 @@ class FarmerGUI(tk.Tk):
     # TAB 5: Blacklist Jual Merchant NPC
     # =========================================================================
     def _build_whitelist_tab(self):
-        container = tk.Frame(self.tab_whitelist, bg="#222428", padx=16, pady=14)
+        _, scroll_inner = self._create_scrollable_container(self.tab_whitelist)
+        container = tk.Frame(scroll_inner, bg="#222428", padx=16, pady=14)
         container.pack(fill=tk.BOTH, expand=True)
 
+        wrap_val = 450 if self.is_compact_mode else 840
+        desc_compact = (
+            "Aturan Jual ke Merchant NPC:\n"
+            "• 🚫 Blacklist: Item di daftar TIDAK dijual (aman di tas).\n"
+            "• ⚡ Item Lain: Langsung dijual ke toko NPC."
+        )
+        desc_normal = (
+            "Daftar item yang TIDAK BOLEH dijual ke Merchant NPC (Blacklist Toko):\n"
+            "• 🚫 BLACKLIST JUAL NPC: Item di daftar ini TIDAK AKAN dijual (tetap aman di tas, misal: Potion, Gear utama).\n"
+            "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan langsung dijual ke toko dan dikonfirmasi dengan tombol Enter."
+        )
         desc = tk.Label(
             container,
-            text="Daftar item yang TIDAK BOLEH dijual ke Merchant NPC (Blacklist Toko):\n"
-                 "• 🚫 BLACKLIST JUAL NPC: Item di daftar ini TIDAK AKAN dijual (tetap aman di tas, misal: Potion, Gear utama).\n"
-                 "• ⚡ SEMUA ITEM LAIN: Seluruh item selain Blacklist akan langsung dijual ke toko dan dikonfirmasi dengan tombol Enter.",
+            text=desc_compact if self.is_compact_mode else desc_normal,
             font=("Segoe UI", 9),
             bg="#222428",
             fg="#8b949e",
-            justify=tk.LEFT
+            justify=tk.LEFT,
+            wraplength=wrap_val
         )
         desc.pack(anchor=tk.W, pady=(0, 10))
+        self._responsive_labels.append((desc, desc_compact, desc_normal))
 
         self.box_merchant_frame = tk.LabelFrame(
             container,
@@ -2179,13 +2250,14 @@ class FarmerGUI(tk.Tk):
         hunt_inner = tk.Frame(hunt_frame, bg="#161b22")
         hunt_inner.pack(fill=tk.X)
 
-        def make_hunt_col(parent, label_text, var_en, var_sec, cd_attr_name):
+        def make_hunt_col(parent, label_compact, label_normal, var_en, var_sec, cd_attr_name):
             col = tk.Frame(parent, bg="#161b22")
-            col.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+            col.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
 
+            cb_text = label_compact if self.is_compact_mode else label_normal
             cb = tk.Checkbutton(
                 col,
-                text=label_text,
+                text=cb_text,
                 variable=var_en,
                 bg="#161b22",
                 fg="#58a6ff",
@@ -2194,19 +2266,22 @@ class FarmerGUI(tk.Tk):
                 activeforeground="#58a6ff",
                 font=("Segoe UI", 8, "bold")
             )
-            cb.pack(side=tk.LEFT, padx=(0, 4))
+            cb.pack(side=tk.LEFT, padx=(0, 2))
+            self._responsive_checkbuttons.append((cb, label_compact, label_normal))
 
-            tk.Label(col, text="Interval:", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(0, 2))
-            ent = tk.Entry(col, textvariable=var_sec, width=5, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8))
-            ent.pack(side=tk.LEFT, padx=(0, 6))
+            ent = tk.Entry(col, textvariable=var_sec, width=4, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8))
+            ent.pack(side=tk.LEFT, padx=(0, 3))
 
-            lbl_cd = tk.Label(col, text="-", bg="#161b22", fg="#8b949e", font=("Consolas", 8, "bold"), width=6, anchor=tk.W)
+            lbl_sec = tk.Label(col, text="s", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8))
+            lbl_sec.pack(side=tk.LEFT, padx=(0, 3))
+
+            lbl_cd = tk.Label(col, text="-", bg="#161b22", fg="#8b949e", font=("Consolas", 8, "bold"), width=5, anchor=tk.W)
             lbl_cd.pack(side=tk.LEFT)
             setattr(self, cd_attr_name, lbl_cd)
 
-        make_hunt_col(hunt_inner, "🎯 Target (E)", self.var_hunt_e_en, self.var_hunt_e_interval, "lbl_hunt_e_cd")
-        make_hunt_col(hunt_inner, "⚔️ Serang (R)", self.var_hunt_r_en, self.var_hunt_r_interval, "lbl_hunt_r_cd")
-        make_hunt_col(hunt_inner, "📦 Pick Loot (F)", self.var_hunt_f_en, self.var_hunt_f_interval, "lbl_hunt_f_cd")
+        make_hunt_col(hunt_inner, "🎯 E", "🎯 Target (E)", self.var_hunt_e_en, self.var_hunt_e_interval, "lbl_hunt_e_cd")
+        make_hunt_col(hunt_inner, "⚔️ R", "⚔️ Serang (R)", self.var_hunt_r_en, self.var_hunt_r_interval, "lbl_hunt_r_cd")
+        make_hunt_col(hunt_inner, "📦 F", "📦 Pick Loot (F)", self.var_hunt_f_en, self.var_hunt_f_interval, "lbl_hunt_f_cd")
 
         # Body container
         self.skill_body_container = tk.Frame(container, bg="#222428")
