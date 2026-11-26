@@ -2219,6 +2219,70 @@ class FarmerGUI(tk.Tk):
             command=self._test_detect_target_monster
         ).pack(side=tk.LEFT)
 
+        # -------------------------------------------------------------
+        # Basic Hunting Actions (E, R, F)
+        # -------------------------------------------------------------
+        hunt_keys_cfg = skill_cfg.get("hunt_keys") or DEFAULT_SKILL_CONFIG.get("hunt_keys", {})
+        e_cfg = hunt_keys_cfg.get("e", {})
+        r_cfg = hunt_keys_cfg.get("r", {})
+        f_cfg = hunt_keys_cfg.get("f", {})
+
+        self.var_hunt_e_en = tk.BooleanVar(value=e_cfg.get("enabled", True))
+        self.var_hunt_e_interval = tk.StringVar(value=str(e_cfg.get("interval", 1.5)))
+        self.var_hunt_r_en = tk.BooleanVar(value=r_cfg.get("enabled", True))
+        self.var_hunt_r_interval = tk.StringVar(value=str(r_cfg.get("interval", 0.8)))
+        self.var_hunt_f_en = tk.BooleanVar(value=f_cfg.get("enabled", True))
+        self.var_hunt_f_interval = tk.StringVar(value=str(f_cfg.get("interval", 1.0)))
+
+        hunt_frame = tk.LabelFrame(
+            container,
+            text=" 🗡️ Aksi Hunting Dasar (E: Target, R: Serang, F: Pick Loot) ",
+            bg="#161b22",
+            fg="#e3b341",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=6,
+            relief="ridge",
+            bd=1
+        )
+        hunt_frame.pack(fill=tk.X, pady=(0, 8))
+
+        hunt_inner = tk.Frame(hunt_frame, bg="#161b22")
+        hunt_inner.pack(fill=tk.X)
+
+        def make_hunt_col(parent, label_compact, label_normal, var_en, var_sec, cd_attr_name):
+            col = tk.Frame(parent, bg="#161b22")
+            col.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+
+            cb_text = label_compact if self.is_compact_mode else label_normal
+            cb = tk.Checkbutton(
+                col,
+                text=cb_text,
+                variable=var_en,
+                bg="#161b22",
+                fg="#58a6ff",
+                selectcolor="#0d1117",
+                activebackground="#161b22",
+                activeforeground="#58a6ff",
+                font=("Segoe UI", 8, "bold")
+            )
+            cb.pack(side=tk.LEFT, padx=(0, 2))
+            self._responsive_checkbuttons.append((cb, label_compact, label_normal))
+
+            ent = tk.Entry(col, textvariable=var_sec, width=4, bg="#0d1117", fg="#e1e2e6", insertbackground="#fff", font=("Consolas", 8))
+            ent.pack(side=tk.LEFT, padx=(0, 3))
+
+            lbl_sec = tk.Label(col, text="s", bg="#161b22", fg="#8b949e", font=("Segoe UI", 8))
+            lbl_sec.pack(side=tk.LEFT, padx=(0, 3))
+
+            lbl_cd = tk.Label(col, text="-", bg="#161b22", fg="#8b949e", font=("Consolas", 8, "bold"), width=5, anchor=tk.W)
+            lbl_cd.pack(side=tk.LEFT)
+            setattr(self, cd_attr_name, lbl_cd)
+
+        make_hunt_col(hunt_inner, "🎯 E", "🎯 Target (E)", self.var_hunt_e_en, self.var_hunt_e_interval, "lbl_hunt_e_cd")
+        make_hunt_col(hunt_inner, "⚔️ R", "⚔️ Serang (R)", self.var_hunt_r_en, self.var_hunt_r_interval, "lbl_hunt_r_cd")
+        make_hunt_col(hunt_inner, "📦 F", "📦 Pick Loot (F)", self.var_hunt_f_en, self.var_hunt_f_interval, "lbl_hunt_f_cd")
+
         # Body container
         self.skill_body_container = tk.Frame(container, bg="#222428")
         self.skill_body_container.pack(fill=tk.BOTH, expand=True)
@@ -2526,13 +2590,7 @@ class FarmerGUI(tk.Tk):
             [("1", "6"), ("2", "7"), ("3", "8"), ("4", "9"), ("5", "0")]
         )
 
-        # 2. LETTER KEYS
-        make_section(
-            "LETTER KEYS (E, R, F)",
-            [("e", "r"), ("f", None)]
-        )
-
-        # 3. FUNCTION KEYS
+        # 2. FUNCTION KEYS
         make_section(
             "FUNCTION KEYS (F1 - F5 kiri | F6 - F10 kanan)",
             [("f1", "f6"), ("f2", "f7"), ("f3", "f8"), ("f4", "f9"), ("f5", "f10")]
@@ -3475,6 +3533,27 @@ class FarmerGUI(tk.Tk):
             tgt_cfg = self.config.data["auto_skill"].setdefault("target_monster", dict(DEFAULT_SKILL_CONFIG.get("target_monster", {})))
             tgt_cfg["enabled"] = self.var_target_monster_enabled.get()
 
+        # Save hunt keys (E, R, F)
+        if hasattr(self, "var_hunt_e_en"):
+            try:
+                e_int = max(0.1, float(self.var_hunt_e_interval.get().strip()))
+            except ValueError:
+                e_int = 1.5
+            try:
+                r_int = max(0.1, float(self.var_hunt_r_interval.get().strip()))
+            except ValueError:
+                r_int = 0.8
+            try:
+                f_int = max(0.1, float(self.var_hunt_f_interval.get().strip()))
+            except ValueError:
+                f_int = 1.0
+
+            self.config.data["auto_skill"]["hunt_keys"] = {
+                "e": {"enabled": self.var_hunt_e_en.get(), "interval": e_int, "desc": "Target Monster (E)"},
+                "r": {"enabled": self.var_hunt_r_en.get(), "interval": r_int, "desc": "Serang Monster (R)"},
+                "f": {"enabled": self.var_hunt_f_en.get(), "interval": f_int, "desc": "Pick Loot Drop (F)"}
+            }
+
         # Save combo items from UI
         if hasattr(self, "_combo_row_vars") and self._combo_row_vars:
             combo_list = []
@@ -3573,6 +3652,10 @@ class FarmerGUI(tk.Tk):
         if hasattr(self, "skill_vars") and self.skill_vars:
             for k, widgets in self.skill_vars.items():
                 widgets["lbl_countdown"].config(text="-", fg="#8b949e")
+        if hasattr(self, "lbl_hunt_e_cd"):
+            self.lbl_hunt_e_cd.config(text="-", fg="#8b949e")
+            self.lbl_hunt_r_cd.config(text="-", fg="#8b949e")
+            self.lbl_hunt_f_cd.config(text="-", fg="#8b949e")
         if hasattr(self, "lbl_target_monster_live"):
             self.lbl_target_monster_live.config(text="[RESET]", fg="#8b949e")
         if hasattr(self, "_combo_status_labels"):
@@ -3599,6 +3682,27 @@ class FarmerGUI(tk.Tk):
                         self.lbl_target_monster_live.config(text="🎯 [TARGET AKTIF]", fg="#3fb950")
                     else:
                         self.lbl_target_monster_live.config(text="⏸️ [HOLD - MENUNGGU TARGET]", fg="#e3b341")
+
+            # Hunt keys (E, R, F) countdown updates
+            if hasattr(self, "lbl_hunt_e_cd"):
+                for k, en_var, cd_var, lbl in [
+                    ("e", self.var_hunt_e_en, self.var_hunt_e_interval, self.lbl_hunt_e_cd),
+                    ("r", self.var_hunt_r_en, self.var_hunt_r_interval, self.lbl_hunt_r_cd),
+                    ("f", self.var_hunt_f_en, self.var_hunt_f_interval, self.lbl_hunt_f_cd)
+                ]:
+                    if not is_running or not en_var.get():
+                        lbl.config(text="-", fg="#8b949e")
+                        continue
+                    try:
+                        iv = float(cd_var.get().strip())
+                    except ValueError:
+                        iv = 1.0
+                    last_t = self.bot.skills.last_hunt_press_times.get(k, 0.0)
+                    if last_t <= 0.0:
+                        lbl.config(text="0.0s", fg="#e3b341")
+                    else:
+                        rem = max(0.0, iv - (now - last_t))
+                        lbl.config(text=f"{rem:.1f}s", fg="#e3b341" if rem <= 0.3 else "#7ee787")
 
             # Timer mode countdown updates
             if hasattr(self, "skill_vars") and self.skill_vars:
